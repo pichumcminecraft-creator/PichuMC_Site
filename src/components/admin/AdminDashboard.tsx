@@ -195,18 +195,18 @@ export function AdminDashboard() {
           ) : (
             <div className="space-y-3">
               {leaderboard.map(([name, count], i) => (
-                <div key={name} className="flex items-center gap-3">
+                <div key={name as string} className="flex items-center gap-3">
                   <div className={cn(
                     "size-8 rounded-full flex items-center justify-center text-xs font-bold",
-                    i === 0 ? "bg-yellow-500/20 text-yellow-500" :
-                    i === 1 ? "bg-zinc-400/20 text-zinc-400" :
-                    i === 2 ? "bg-amber-700/20 text-amber-700" :
+                    i === 0 ? "bg-primary/25 text-primary" :
+                    i === 1 ? "bg-primary/15 text-primary" :
+                    i === 2 ? "bg-primary/10 text-primary/80" :
                     "bg-secondary text-muted-foreground"
                   )}>
                     {i < 3 ? <Medal className="w-4 h-4" /> : i + 1}
                   </div>
-                  <span className="flex-1 text-sm text-foreground font-medium">{name}</span>
-                  <span className="tabular-nums text-xs text-primary font-semibold">{count} acties</span>
+                  <span className="flex-1 text-sm text-foreground font-medium">{name as string}</span>
+                  <span className="tabular-nums text-xs text-primary font-semibold">{count as number} acties</span>
                 </div>
               ))}
             </div>
