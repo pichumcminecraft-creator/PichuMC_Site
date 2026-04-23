@@ -799,8 +799,43 @@ Deno.serve(async (req) => {
       });
     }
 
-    // === OWNER PANEL ACTIONS (password re-confirmation required) ===
-    if (action === "owner-action" && req.method === "POST") {
+      return jsonResponse({
+        totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences,
+        activeStaff: activeStaff || [],
+        activeStaffCount: (activeStaff || []).length,
+      });
+    }
+
+    // === MC SERVER STATUS (Owner Panel) ===
+    if (action === "mc-status") {
+      if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang" }, 403);
+      const servers = [
+        { key: "velocity", name: "Velocity (Proxy)", host: "node-07.bluxnetwork.eu", port: 25003 },
+        { key: "lobby",    name: "Lobby",            host: "node-07.bluxnetwork.eu", port: 25001 },
+        { key: "skyblock", name: "Skyblock",         host: "node-07.bluxnetwork.eu", port: 25002 },
+        { key: "events",   name: "Events",           host: "node-07.bluxnetwork.eu", port: 25000 },
+      ];
+      const results = await Promise.all(servers.map(async (s) => {
+        try {
+          const r = await fetch(`https://api.mcsrvstat.us/3/${s.host}:${s.port}`, {
+            headers: { "User-Agent": "PichuMC-Staff-Panel" },
+          });
+          const d = await r.json();
+          return {
+            ...s,
+            online: !!d.online,
+            players: d.players?.online ?? 0,
+            max: d.players?.max ?? 0,
+            version: d.version || null,
+            motd: Array.isArray(d.motd?.clean) ? d.motd.clean.join(" ").trim() : null,
+            ping: d.debug?.ping ? "ok" : null,
+          };
+        } catch (e) {
+          return { ...s, online: false, players: 0, max: 0, version: null, motd: null, error: String(e) };
+        }
+      }));
+      return jsonResponse({ servers: results, checkedAt: new Date().toISOString() });
+    }
       if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang tot Owner Panel" }, 403);
       const { action: subAction, password } = await req.json();
       if (!password) return jsonResponse({ error: "Wachtwoord vereist" }, 400);
