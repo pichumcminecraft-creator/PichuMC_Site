@@ -173,7 +173,7 @@ export function OwnerPanel() {
     if (!password) { toast.error("Wachtwoord vereist"); return; }
     setBusy(true);
     try {
-      const data = await adminFetch("owner-action", { action: open.id, password });
+      const data = await adminFetch("owner-action", { subAction: open.id, password });
       if (open.produces === "csv") {
         downloadCsv(open.id, data.rows || []);
       }
