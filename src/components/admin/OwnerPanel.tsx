@@ -216,10 +216,61 @@ export function OwnerPanel() {
 
       {/* Vitals */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Vital icon={Server} label="Server" value="Operationeel" />
+        <Vital icon={Server} label="Edge functies" value="Live" />
         <Vital icon={Database} label="Database" value="Verbonden" />
-        <Vital icon={Cpu} label="Edge functies" value="Live" />
+        <Vital icon={Cpu} label="Status API" value="OK" />
         <Vital icon={Activity} label="Admins" value={String(stats?.adminCount ?? "-")} />
+      </div>
+
+      {/* Minecraft server status */}
+      <div className="rounded-3xl bg-card border border-border p-6">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Minecraft servers</h2>
+            {mcCheckedAt && (
+              <span className="text-[10px] text-muted-foreground">
+                · gecheckt {new Date(mcCheckedAt).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
+          <Button size="sm" variant="ghost" onClick={loadMc} disabled={mcLoading} className="h-7 gap-1 text-xs">
+            <RefreshCw className={cn("w-3 h-3", mcLoading && "animate-spin")} /> Verversen
+          </Button>
+        </div>
+
+        {mcServers === null && mcLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="h-24 rounded-2xl bg-secondary animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(mcServers || []).map((s) => (
+              <McServerCard key={s.key} s={s} />
+            ))}
+          </div>
+        )}
+
+        {mcServers && mcServers.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Users className="w-3 h-3" />
+              Totaal online:{" "}
+              <span className="text-foreground font-semibold">
+                {mcServers.reduce((sum, s) => sum + (s.online ? s.players : 0), 0)}
+              </span>
+            </span>
+            <span>·</span>
+            <span>
+              Servers up:{" "}
+              <span className="text-primary font-semibold">
+                {mcServers.filter(s => s.online).length}/{mcServers.length}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Sections */}
