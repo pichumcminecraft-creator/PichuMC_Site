@@ -136,8 +136,29 @@ export function OwnerPanel() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [mcServers, setMcServers] = useState<any[] | null>(null);
+  const [mcLoading, setMcLoading] = useState(false);
+  const [mcCheckedAt, setMcCheckedAt] = useState<string | null>(null);
 
-  useEffect(() => { adminFetch("stats").then(setStats).catch(() => {}); }, []);
+  const loadMc = async () => {
+    setMcLoading(true);
+    try {
+      const d = await adminFetch("mc-status");
+      setMcServers(d.servers || []);
+      setMcCheckedAt(d.checkedAt || new Date().toISOString());
+    } catch (e: any) {
+      toast.error(e?.message || "Kon serverstatus niet laden");
+    } finally {
+      setMcLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    adminFetch("stats").then(setStats).catch(() => {});
+    loadMc();
+    const t = setInterval(loadMc, 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const close = () => {
     setOpen(null); setPassword(""); setConfirm(""); setResult(null); setBusy(false);
