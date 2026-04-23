@@ -628,7 +628,78 @@ function McServerCard({ s }: { s: any }) {
   );
 }
 
-function downloadCsv(name: string, rows: any[]) {
+function CopyField({ label, value, monospace = false, sensitive = false }: { label: string; value: string; monospace?: boolean; sensitive?: boolean }) {
+  const [shown, setShown] = useState(!sensitive);
+  const masked = sensitive && !shown ? "•".repeat(Math.min(value.length, 16)) : value;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} gekopieerd`);
+    } catch {
+      toast.error("Kopiëren mislukt");
+    }
+  };
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">{label}</p>
+      <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex-1 px-3 py-2 rounded-lg bg-secondary border border-border text-xs text-foreground truncate",
+          monospace && "font-mono"
+        )}>
+          {masked}
+        </div>
+        {sensitive && (
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setShown(s => !s)}>
+            {shown ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </Button>
+        )}
+        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={copy}>
+          <Copy className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DatabaseWidget() {
+  return (
+    <div className="rounded-3xl bg-card border border-border p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">MySQL Database</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+            Actief
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-mono">{DB_INFO.database}</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <CopyField label="Endpoint" value={DB_INFO.endpoint} monospace />
+        <CopyField label="Connections from" value={DB_INFO.connectionsFrom} monospace />
+        <CopyField label="Username" value={DB_INFO.username} monospace />
+        <CopyField label="Database" value={DB_INFO.database} monospace />
+        <CopyField label="Host" value={DB_INFO.host} monospace />
+        <CopyField label="Port" value={DB_INFO.port} monospace />
+      </div>
+
+      <div className="space-y-3">
+        <CopyField label="Password" value={DB_INFO.password} monospace sensitive />
+        <CopyField label="JDBC connection string" value={DB_INFO.jdbc} monospace sensitive />
+      </div>
+
+      <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-destructive/5 border border-destructive/20">
+        <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground">
+          Deze credentials geven volledige toegang tot de productie-database. Deel ze nooit en roteer het wachtwoord
+          regelmatig via je hosting paneel.
+        </p>
+      </div>
+    </div>
+  );
+}
   if (!rows.length) {
     toast.info("Geen data om te exporteren");
     return;
