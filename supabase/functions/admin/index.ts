@@ -782,7 +782,51 @@ Deno.serve(async (req) => {
       const { count: adminCount } = await supabase.from("admin_users").select("*", { count: "exact", head: true });
       const { count: totalRoles } = await supabase.from("roles").select("*", { count: "exact", head: true });
       const { count: activeAbsences } = await supabase.from("absences").select("*", { count: "exact", head: true }).eq("status", "goedgekeurd");
-      return jsonResponse({ totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences });
+
+      // Echte actieve staff: laatst online < 15 minuten geleden
+      const activeCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data: activeStaff } = await supabase
+        .from("admin_users")
+        .select("id, username, last_online, role, roles(name, color)")
+        .gte("last_online", activeCutoff)
+        .order("last_online", { ascending: false })
+        .limit(10);
+
+      return jsonResponse({
+        totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences,
+        activeStaff: activeStaff || [],
+        activeStaffCount: (activeStaff || []).length,
+      });
+    }
+
+    // === MC SERVER STATUS (Owner Panel) ===
+    if (action === "mc-status") {
+      if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang" }, 403);
+      const servers = [
+        { key: "velocity", name: "Velocity (Proxy)", host: "node-07.bluxnetwork.eu", port: 25003 },
+        { key: "lobby",    name: "Lobby",            host: "node-07.bluxnetwork.eu", port: 25001 },
+        { key: "skyblock", name: "Skyblock",         host: "node-07.bluxnetwork.eu", port: 25002 },
+        { key: "events",   name: "Events",           host: "node-07.bluxnetwork.eu", port: 25000 },
+      ];
+      const results = await Promise.all(servers.map(async (s) => {
+        try {
+          const r = await fetch(`https://api.mcsrvstat.us/3/${s.host}:${s.port}`, {
+            headers: { "User-Agent": "PichuMC-Staff-Panel" },
+          });
+          const d = await r.json();
+          return {
+            ...s,
+            online: !!d.online,
+            players: d.players?.online ?? 0,
+            max: d.players?.max ?? 0,
+            version: d.version || null,
+            motd: Array.isArray(d.motd?.clean) ? d.motd.clean.join(" ").trim() : null,
+          };
+        } catch (e) {
+          return { ...s, online: false, players: 0, max: 0, version: null, motd: null, error: String(e) };
+        }
+      }));
+      return jsonResponse({ servers: results, checkedAt: new Date().toISOString() });
     }
 
     // === OWNER PANEL ACTIONS (password re-confirmation required) ===

@@ -99,18 +99,21 @@ export function PositionsTab({ onRefresh }: { onRefresh: () => void }) {
 
     const newPositions = [...positions];
     [newPositions[index], newPositions[newIndex]] = [newPositions[newIndex], newPositions[index]];
-    setPositions(newPositions);
+    // Optimistic update incl. nieuwe sort_order zodat volgorde stabiel blijft
+    const withOrder = newPositions.map((p, i) => ({ ...p, sort_order: i }));
+    setPositions(withOrder);
 
     try {
       await adminFetch("reorder-positions", {
-        order: newPositions.map((position, positionIndex) => ({
+        order: withOrder.map((position) => ({
           id: position.id,
-          sort_order: positionIndex,
+          sort_order: position.sort_order,
         })),
       });
       onRefresh();
-    } catch {
-      toast.error("Fout bij herordenen");
+      toast.success("Volgorde bijgewerkt");
+    } catch (err: any) {
+      toast.error(err?.message || "Fout bij herordenen");
       load();
     }
   };

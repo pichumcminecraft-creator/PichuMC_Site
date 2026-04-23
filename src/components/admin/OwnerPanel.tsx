@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import {
   Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity,
-  Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2
+  Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2,
+  RefreshCw, Globe, Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,8 +136,29 @@ export function OwnerPanel() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [mcServers, setMcServers] = useState<any[] | null>(null);
+  const [mcLoading, setMcLoading] = useState(false);
+  const [mcCheckedAt, setMcCheckedAt] = useState<string | null>(null);
 
-  useEffect(() => { adminFetch("stats").then(setStats).catch(() => {}); }, []);
+  const loadMc = async () => {
+    setMcLoading(true);
+    try {
+      const d = await adminFetch("mc-status");
+      setMcServers(d.servers || []);
+      setMcCheckedAt(d.checkedAt || new Date().toISOString());
+    } catch (e: any) {
+      toast.error(e?.message || "Kon serverstatus niet laden");
+    } finally {
+      setMcLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    adminFetch("stats").then(setStats).catch(() => {});
+    loadMc();
+    const t = setInterval(loadMc, 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const close = () => {
     setOpen(null); setPassword(""); setConfirm(""); setResult(null); setBusy(false);
@@ -194,10 +216,61 @@ export function OwnerPanel() {
 
       {/* Vitals */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Vital icon={Server} label="Server" value="Operationeel" />
+        <Vital icon={Server} label="Edge functies" value="Live" />
         <Vital icon={Database} label="Database" value="Verbonden" />
-        <Vital icon={Cpu} label="Edge functies" value="Live" />
+        <Vital icon={Cpu} label="Status API" value="OK" />
         <Vital icon={Activity} label="Admins" value={String(stats?.adminCount ?? "-")} />
+      </div>
+
+      {/* Minecraft server status */}
+      <div className="rounded-3xl bg-card border border-border p-6">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Minecraft servers</h2>
+            {mcCheckedAt && (
+              <span className="text-[10px] text-muted-foreground">
+                · gecheckt {new Date(mcCheckedAt).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
+          <Button size="sm" variant="ghost" onClick={loadMc} disabled={mcLoading} className="h-7 gap-1 text-xs">
+            <RefreshCw className={cn("w-3 h-3", mcLoading && "animate-spin")} /> Verversen
+          </Button>
+        </div>
+
+        {mcServers === null && mcLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="h-24 rounded-2xl bg-secondary animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(mcServers || []).map((s) => (
+              <McServerCard key={s.key} s={s} />
+            ))}
+          </div>
+        )}
+
+        {mcServers && mcServers.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Users className="w-3 h-3" />
+              Totaal online:{" "}
+              <span className="text-foreground font-semibold">
+                {mcServers.reduce((sum, s) => sum + (s.online ? s.players : 0), 0)}
+              </span>
+            </span>
+            <span>·</span>
+            <span>
+              Servers up:{" "}
+              <span className="text-primary font-semibold">
+                {mcServers.filter(s => s.online).length}/{mcServers.length}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Sections */}
@@ -350,6 +423,73 @@ function Vital({ icon: Icon, label, value }: { icon: React.ElementType; label: s
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
         <p className="text-sm font-semibold text-foreground truncate">{value}</p>
       </div>
+    </div>
+  );
+}
+
+function McServerCard({ s }: { s: any }) {
+  const address = `${s.host}:${s.port}`;
+  const copy = () => {
+    navigator.clipboard.writeText(address).then(() => toast.success("Adres gekopieerd"));
+  };
+  const pct = s.online && s.max > 0 ? Math.min(100, Math.round((s.players / s.max) * 100)) : 0;
+  return (
+    <div className={cn(
+      "rounded-2xl border p-4 transition-colors",
+      s.online
+        ? "bg-secondary border-border hover:border-primary/40"
+        : "bg-destructive/5 border-destructive/20"
+    )}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "size-2 rounded-full",
+              s.online ? "bg-primary animate-pulse" : "bg-destructive"
+            )} />
+            <p className="text-sm font-semibold text-foreground">{s.name}</p>
+          </div>
+          <button
+            onClick={copy}
+            className="text-[11px] text-muted-foreground font-mono hover:text-primary transition-colors mt-0.5"
+            title="Klik om te kopiëren"
+          >
+            {address}
+          </button>
+        </div>
+        <span className={cn(
+          "text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase tracking-wider",
+          s.online
+            ? "bg-primary/10 text-primary border-primary/30"
+            : "bg-destructive/10 text-destructive border-destructive/30"
+        )}>
+          {s.online ? "Online" : "Offline"}
+        </span>
+      </div>
+
+      {s.online ? (
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between text-xs mb-1.5">
+            <span className="text-muted-foreground">Spelers</span>
+            <span className="text-foreground tabular-nums font-semibold">
+              {s.players}{s.max ? <span className="text-muted-foreground"> / {s.max}</span> : ""}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-card overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${Math.max(pct, s.players > 0 ? 4 : 0)}%` }}
+            />
+          </div>
+          {s.version && (
+            <p className="text-[10px] text-muted-foreground mt-2 truncate">
+              {s.version}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-destructive/80 mt-3">Server reageert niet</p>
+      )}
     </div>
   );
 }
