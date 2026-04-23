@@ -785,6 +785,68 @@ Deno.serve(async (req) => {
       return jsonResponse({ totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences });
     }
 
+    // === OWNER PANEL ACTIONS (password re-confirmation required) ===
+    if (action === "owner-action" && req.method === "POST") {
+      if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang tot Owner Panel" }, 403);
+      const { action: subAction, password } = await req.json();
+      if (!password) return jsonResponse({ error: "Wachtwoord vereist" }, 400);
+
+      // Re-verify password
+      const { data: me } = await supabase
+        .from("admin_users").select("password_hash, username").eq("id", session.userId).single();
+      if (!me) return jsonResponse({ error: "Gebruiker niet gevonden" }, 404);
+      const { data: pwOk } = await supabase.rpc("check_password", {
+        _password: password, _hash: me.password_hash,
+      });
+      if (!pwOk) return jsonResponse({ error: "Wachtwoord onjuist" }, 401);
+
+      switch (subAction) {
+        case "clear-old-activity": {
+          const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const { error, count } = await supabase
+            .from("activity_log").delete({ count: "exact" }).lt("created_at", cutoff);
+          if (error) return jsonResponse({ error: error.message }, 400);
+          await logActivity(session.userId, sessionUsername, "owner-clear-activity",
+            `Activiteit > 30 dagen verwijderd (${count ?? 0} rijen)`);
+          return jsonResponse({ success: true, deleted: count ?? 0 });
+        }
+        case "delete-rejected-applications": {
+          const { error, count } = await supabase
+            .from("applications").delete({ count: "exact" }).eq("status", "afgewezen");
+          if (error) return jsonResponse({ error: error.message }, 400);
+          await logActivity(session.userId, sessionUsername, "owner-delete-rejected",
+            `Afgewezen sollicitaties verwijderd (${count ?? 0} rijen)`);
+          return jsonResponse({ success: true, deleted: count ?? 0 });
+        }
+        case "close-all-positions": {
+          const { error } = await supabase.from("positions").update({ is_open: false }).eq("is_open", true);
+          if (error) return jsonResponse({ error: error.message }, 400);
+          await logActivity(session.userId, sessionUsername, "owner-close-positions", "Alle posities gesloten");
+          return jsonResponse({ success: true });
+        }
+        case "open-all-positions": {
+          const { error } = await supabase.from("positions").update({ is_open: true }).eq("is_open", false);
+          if (error) return jsonResponse({ error: error.message }, 400);
+          await logActivity(session.userId, sessionUsername, "owner-open-positions", "Alle posities geopend");
+          return jsonResponse({ success: true });
+        }
+        case "export-activity": {
+          const { data } = await supabase.from("activity_log").select("*")
+            .order("created_at", { ascending: false }).limit(5000);
+          await logActivity(session.userId, sessionUsername, "owner-export-activity", "Activity log geëxporteerd");
+          return jsonResponse({ success: true, rows: data || [] });
+        }
+        case "export-users": {
+          const { data } = await supabase.from("admin_users")
+            .select("id, username, role, role_id, created_at, last_online, roles(name)");
+          await logActivity(session.userId, sessionUsername, "owner-export-users", "Gebruikers geëxporteerd");
+          return jsonResponse({ success: true, rows: data || [] });
+        }
+        default:
+          return jsonResponse({ error: "Onbekende owner actie" }, 400);
+      }
+    }
+
     return jsonResponse({ error: "Onbekende actie" }, 400);
   } catch (err) {
     return jsonResponse({ error: (err as Error).message }, 500);
