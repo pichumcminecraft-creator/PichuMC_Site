@@ -36,8 +36,12 @@ const Home = () => {
   const { data: announcements = [] } = useQuery({
     queryKey: ["public-announcements"],
     queryFn: async () => {
-      const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(5);
-      return data || [];
+      const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20);
+      const { parseAnnouncement } = await import("@/lib/announcements");
+      return (data || [])
+        .map((a) => parseAnnouncement(a))
+        .filter((a) => a.audience === "public")
+        .slice(0, 5);
     },
   });
 
@@ -75,7 +79,7 @@ const Home = () => {
                   {announcements.slice(0, 3).map((a: any) => (
                     <div key={a.id}>
                       <p className="text-sm font-medium text-foreground">{a.title}</p>
-                      {a.content && <p className="text-xs text-muted-foreground">{a.content}</p>}
+                      {a.cleanContent && <p className="text-xs text-muted-foreground">{a.cleanContent}</p>}
                     </div>
                   ))}
                 </div>

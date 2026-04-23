@@ -18,6 +18,7 @@ import { RolesTab } from "@/components/admin/RolesTab";
 import { SiteSettingsTab } from "@/components/admin/SiteSettingsTab";
 import { ThemeTab } from "@/components/admin/ThemeTab";
 import { ActivityTab } from "@/components/admin/ActivityTab";
+import { OwnerPanel } from "@/components/admin/OwnerPanel";
 import pichuLogo from "@/assets/PichuMC_logo.png";
 
 const staffItems = [
@@ -36,6 +37,7 @@ const adminItems = [
   { key: "activity", label: "Activiteit", icon: Clock },
   { key: "site-settings", label: "Teksten", icon: Settings },
   { key: "theme", label: "Thema & Kleuren", icon: Palette },
+  { key: "owner", label: "Owner Panel", icon: Crown },
 ];
 
 const AdminPanel = () => {
@@ -58,6 +60,7 @@ const AdminPanel = () => {
     team: "users_view", applications: "applications_view", positions: "positions_view",
     discord: "discord_view", roles: "roles_view", activity: "activity_view",
     "site-settings": "content_view", theme: "content_manage", announcements: "announcements_manage",
+    owner: "owner_panel",
   };
 
   const visibleAdminItems = adminItems.filter((item) => hasPerm(permMap[item.key] || ""));
@@ -178,6 +181,7 @@ const AdminPanel = () => {
           {activePage === "activity" && <ActivityTab />}
           {activePage === "site-settings" && <SiteSettingsTab />}
           {activePage === "theme" && <ThemeTab />}
+          {activePage === "owner" && <OwnerPanel />}
         </div>
       </main>
     </div>
