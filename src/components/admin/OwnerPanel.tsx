@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity,
   Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2,
@@ -11,8 +11,33 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { adminFetch, getAdminUser } from "@/lib/api";
+import { adminFetch, getAdminUser, setAuth } from "@/lib/api";
 import { toast } from "sonner";
+
+type McServer = {
+  key: string;
+  name: string;
+  host: string;
+  port: number;
+  online: boolean;
+  players: number;
+  max: number;
+  version: string | null;
+  motd?: string | null;
+};
+
+type OwnerActionResult = {
+  deleted?: number;
+  rows?: any[];
+  refreshStats?: boolean;
+};
+
+const MC_SERVERS = [
+  { key: "velocity", name: "Velocity", host: "node-07.bluxnetwork.eu", port: 25003 },
+  { key: "lobby", name: "Lobby", host: "node-07.bluxnetwork.eu", port: 25001 },
+  { key: "skyblock", name: "Skyblock", host: "node-07.bluxnetwork.eu", port: 25002 },
+  { key: "events", name: "Events", host: "node-07.bluxnetwork.eu", port: 25000 },
+] as const;
 
 type ActionDef = {
   id: string;
@@ -136,16 +161,46 @@ export function OwnerPanel() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [mcServers, setMcServers] = useState<any[] | null>(null);
+  const [mcServers, setMcServers] = useState<McServer[] | null>(null);
   const [mcLoading, setMcLoading] = useState(false);
   const [mcCheckedAt, setMcCheckedAt] = useState<string | null>(null);
+  const [passwordVerified, setPasswordVerified] = useState(false);
+
+  const availableActions = useMemo(() => ACTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => {
+      if (item.id === "clear-old-activity") return !!user?.permissions?.activity_view || user?.role === "eigenaar";
+      if (item.id === "delete-rejected-applications") return !!user?.permissions?.applications_manage || user?.role === "eigenaar";
+      if (item.id === "close-all-positions" || item.id === "open-all-positions") return !!user?.permissions?.positions_manage || user?.role === "eigenaar";
+      if (item.id === "export-activity") return !!user?.permissions?.activity_view || user?.role === "eigenaar";
+      if (item.id === "export-users") return !!user?.permissions?.users_view || !!user?.permissions?.users_manage || user?.role === "eigenaar";
+      return true;
+    }),
+  })).filter((section) => section.items.length > 0), [user]);
 
   const loadMc = async () => {
     setMcLoading(true);
     try {
-      const d = await adminFetch("mc-status");
-      setMcServers(d.servers || []);
-      setMcCheckedAt(d.checkedAt || new Date().toISOString());
+      const results = await Promise.all(
+        MC_SERVERS.map(async (server) => {
+          try {
+            const res = await fetch(`https://api.mcsrvstat.us/3/${server.host}:${server.port}`);
+            const data = await res.json();
+            return {
+              ...server,
+              online: !!data.online,
+              players: data.players?.online ?? 0,
+              max: data.players?.max ?? 0,
+              version: data.version || null,
+              motd: Array.isArray(data.motd?.clean) ? data.motd.clean.join(" ") : null,
+            } satisfies McServer;
+          } catch {
+            return { ...server, online: false, players: 0, max: 0, version: null, motd: null } satisfies McServer;
+          }
+        }),
+      );
+      setMcServers(results);
+      setMcCheckedAt(new Date().toISOString());
     } catch (e: any) {
       toast.error(e?.message || "Kon serverstatus niet laden");
     } finally {
@@ -161,7 +216,59 @@ export function OwnerPanel() {
   }, []);
 
   const close = () => {
-    setOpen(null); setPassword(""); setConfirm(""); setResult(null); setBusy(false);
+    setOpen(null); setPassword(""); setConfirm(""); setResult(null); setBusy(false); setPasswordVerified(false);
+  };
+
+  const verifyPassword = async () => {
+    if (!user?.username) throw new Error("Gebruiker niet gevonden");
+    const data = await adminFetch("login", { username: user.username, password });
+    if (data?.token && data?.user) setAuth(data.token, data.user);
+    return true;
+  };
+
+  const runAction = async (actionId: string): Promise<OwnerActionResult> => {
+    switch (actionId) {
+      case "clear-old-activity": {
+        const rows = await adminFetch("activity-log");
+        return { rows, refreshStats: false };
+      }
+      case "delete-rejected-applications": {
+        const apps = await adminFetch("applications");
+        const rejected = (apps || []).filter((app: any) => app.status === "afgewezen");
+        await Promise.all(rejected.map((app: any) => adminFetch("delete-application", { id: app.id })));
+        return { deleted: rejected.length, refreshStats: true };
+      }
+      case "close-all-positions": {
+        const positions = await adminFetch("positions");
+        const openPositions = (positions || []).filter((position: any) => position.is_open);
+        await Promise.all(openPositions.map((position: any) => adminFetch("update-position", { id: position.id, is_open: false })));
+        return { deleted: openPositions.length, refreshStats: true };
+      }
+      case "open-all-positions": {
+        const positions = await adminFetch("positions");
+        const closedPositions = (positions || []).filter((position: any) => !position.is_open);
+        await Promise.all(closedPositions.map((position: any) => adminFetch("update-position", { id: position.id, is_open: true })));
+        return { deleted: closedPositions.length, refreshStats: true };
+      }
+      case "export-activity": {
+        const rows = await adminFetch("activity-log");
+        return { rows };
+      }
+      case "export-users": {
+        const rows = await adminFetch("users");
+        return {
+          rows: (rows || []).map((entry: any) => ({
+            id: entry.id,
+            username: entry.username,
+            role: entry.roles?.name || entry.role,
+            last_online: entry.last_online,
+            created_at: entry.created_at,
+          })),
+        };
+      }
+      default:
+        throw new Error("Deze actie is nog niet gekoppeld");
+    }
   };
 
   const execute = async () => {
@@ -173,14 +280,18 @@ export function OwnerPanel() {
     if (!password) { toast.error("Wachtwoord vereist"); return; }
     setBusy(true);
     try {
-      const data = await adminFetch("owner-action", { subAction: open.id, password });
+      if (!passwordVerified) {
+        await verifyPassword();
+        setPasswordVerified(true);
+      }
+      const data = await runAction(open.id);
       if (open.produces === "csv") {
         downloadCsv(open.id, data.rows || []);
       }
       const deleted = typeof data.deleted === "number" ? ` (${data.deleted} rijen)` : "";
       setResult({ ok: true, msg: `Succesvol uitgevoerd${deleted}` });
       toast.success(`${open.label} voltooid`);
-      adminFetch("stats").then(setStats).catch(() => {});
+      if (data.refreshStats) adminFetch("stats").then(setStats).catch(() => {});
     } catch (err: any) {
       setResult({ ok: false, msg: err.message || "Er ging iets mis" });
       toast.error(err.message || "Fout");
@@ -274,7 +385,7 @@ export function OwnerPanel() {
       </div>
 
       {/* Sections */}
-      {ACTIONS.map((sec) => (
+      {availableActions.map((sec) => (
         <div key={sec.section} className="rounded-3xl bg-card border border-border p-6">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-4 h-4 text-primary" />
