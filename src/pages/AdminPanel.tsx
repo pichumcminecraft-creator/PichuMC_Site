@@ -50,6 +50,9 @@ const AdminPanel = () => {
 
   useEffect(() => {
     if (!getToken()) navigate("/admin/login");
+    const onNav = (e: any) => setActivePage(e.detail);
+    window.addEventListener("admin:navigate", onNav);
+    return () => window.removeEventListener("admin:navigate", onNav);
   }, []);
 
   const handleLogout = () => { clearAuth(); navigate("/admin/login"); };
