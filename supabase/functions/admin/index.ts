@@ -799,13 +799,6 @@ Deno.serve(async (req) => {
       });
     }
 
-      return jsonResponse({
-        totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences,
-        activeStaff: activeStaff || [],
-        activeStaffCount: (activeStaff || []).length,
-      });
-    }
-
     // === MC SERVER STATUS (Owner Panel) ===
     if (action === "mc-status") {
       if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang" }, 403);
@@ -828,7 +821,6 @@ Deno.serve(async (req) => {
             max: d.players?.max ?? 0,
             version: d.version || null,
             motd: Array.isArray(d.motd?.clean) ? d.motd.clean.join(" ").trim() : null,
-            ping: d.debug?.ping ? "ok" : null,
           };
         } catch (e) {
           return { ...s, online: false, players: 0, max: 0, version: null, motd: null, error: String(e) };
@@ -836,6 +828,9 @@ Deno.serve(async (req) => {
       }));
       return jsonResponse({ servers: results, checkedAt: new Date().toISOString() });
     }
+
+    // === OWNER PANEL ACTIONS (password re-confirmation required) ===
+    if (action === "owner-action" && req.method === "POST") {
       if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang tot Owner Panel" }, 403);
       const { action: subAction, password } = await req.json();
       if (!password) return jsonResponse({ error: "Wachtwoord vereist" }, 400);
