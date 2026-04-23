@@ -40,7 +40,8 @@ export function AdminDashboard() {
 
   useEffect(() => {
     adminFetch("stats").then(setStats).catch(() => {});
-    adminFetch("activity-log").then((d) => setActivity((d || []).slice(0, 8))).catch(() => {});
+    // Veel activity ophalen voor leaderboard accuracy
+    adminFetch("activity-log").then((d) => setActivity((d || []).slice(0, 200))).catch(() => {});
     adminFetch("announcements")
       .then((d) => setAnnouncements((d || []).map((a: any) => parseAnnouncement(a))))
       .catch(() => {});
