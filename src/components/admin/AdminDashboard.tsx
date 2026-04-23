@@ -1,33 +1,62 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { adminFetch, getAdminUser } from "@/lib/api";
 import {
-  Users2, Crown, Clock, CalendarOff, Megaphone, Activity, Globe,
-  Server, Sparkles, Search, Trophy, Medal, Zap, FileText
+  Users2, Crown, CalendarOff, Megaphone, Activity, Globe,
+  Server, Sparkles, Search, Trophy, Medal, Zap, FileText,
+  Sun, Moon, Coffee, PartyPopper, Flame, Gamepad2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseAnnouncement, type Audience } from "@/lib/announcements";
 import pichuLogo from "@/assets/PichuMC_logo.png";
+
+const FUN_FACTS = [
+  "Een Enderman pakt geen blok op als je hem aankijkt 👀",
+  "Pichu evolueert tot Pikachu als zijn vriendschap hoog is ⚡",
+  "Een Creeper springt soms uit angst voor katten 🐱",
+  "De langste Minecraft-wereld in 1 sessie was 138+ uur 🎮",
+  "Skyblock startte als kleine map in 2011 🏝️",
+  "1 Minecraft-dag duurt 20 minuten in het echt ⏱️",
+  "De Wither werd toegevoegd in 1.4 (de 'Pretty Scary Update') 💀",
+  "Eigenlijk heten Endermen oorspronkelijk 'Farlanders' 🌌",
+];
+
+const GREETINGS = [
+  "Klaar om wat magie te doen?",
+  "Laten we het netwerk soepel houden ✨",
+  "De spelers rekenen op jou 🎯",
+  "Tijd om te shinen 💫",
+  "Vandaag wordt een goede dag 🚀",
+];
 
 export function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [activity, setActivity] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [audienceTab, setAudienceTab] = useState<Audience>("staff");
+  const [now, setNow] = useState(new Date());
   const user = getAdminUser();
+  const isOwner = user?.role === "eigenaar";
+  const has = (perm: string) => isOwner || user?.permissions?.[perm] === true;
 
   useEffect(() => {
     adminFetch("stats").then(setStats).catch(() => {});
-    adminFetch("activity-log").then((d) => setActivity((d || []).slice(0, 6))).catch(() => {});
+    adminFetch("activity-log").then((d) => setActivity((d || []).slice(0, 8))).catch(() => {});
     adminFetch("announcements")
       .then((d) => setAnnouncements((d || []).map((a: any) => parseAnnouncement(a))))
       .catch(() => {});
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
   }, []);
 
   const roleName = user?.role || "Staff";
   const visibleAnnouncements = announcements.filter(a => a.audience === audienceTab);
   const heroAnnouncement = visibleAnnouncements.find(a => a.is_pinned) || visibleAnnouncements[0];
 
-  // Mock contributor leaderboard from activity
+  // Echte actieve staff (laatst online < 15 min via stats endpoint)
+  const activeStaff: any[] = stats?.activeStaff || [];
+  const activeCount: number = stats?.activeStaffCount ?? 0;
+
+  // Leaderboard uit activity
   const leaderboard = Object.entries(
     activity.reduce((acc: Record<string, number>, a) => {
       acc[a.username] = (acc[a.username] || 0) + 1;
@@ -37,8 +66,22 @@ export function AdminDashboard() {
     .sort((a, b) => (b[1] as number) - (a[1] as number))
     .slice(0, 4);
 
-  // Mock weekly bars (could be real later)
   const bars = [40, 65, 50, 80, 35, 90, 70];
+  const hour = now.getHours();
+  const partOfDay =
+    hour < 6 ? { label: "Nacht", icon: Moon, greet: "Nachtuil" } :
+    hour < 12 ? { label: "Ochtend", icon: Coffee, greet: "Goedemorgen" } :
+    hour < 18 ? { label: "Middag", icon: Sun, greet: "Goedemiddag" } :
+    { label: "Avond", icon: Moon, greet: "Goedenavond" };
+  const PartIcon = partOfDay.icon;
+
+  const funFact = useMemo(() => FUN_FACTS[Math.floor(Date.now() / 86_400_000) % FUN_FACTS.length], []);
+  const greetingTagline = useMemo(() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)], []);
+
+  // Welke stat-tiles zichtbaar op basis van perms
+  const showApplications = has("applications_view") || has("applications_manage");
+  const showAbsences = has("absences_manage");
+  const showPositions = has("positions_view") || has("positions_manage");
 
   return (
     <div className="space-y-6">
@@ -48,17 +91,24 @@ export function AdminDashboard() {
           <img src={pichuLogo} alt="PichuMC" className="w-10 h-10 object-contain" />
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              PichuMC <span className="text-muted-foreground font-light">Admin</span>
+              PichuMC <span className="text-muted-foreground font-light">Staff</span>
             </h1>
-            <p className="text-xs text-muted-foreground">Welkom terug, {user?.username}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <PartIcon className="w-3 h-3" />
+              {partOfDay.greet}, {user?.username} — {greetingTagline}
+            </p>
           </div>
           <div className="ml-3 hidden md:flex items-center gap-2 rounded-full bg-card border border-border px-3 py-1.5 text-xs">
-            <span className="size-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-foreground font-medium">{stats?.adminCount ?? 0} Staff actief</span>
+            <span className={cn("size-2 rounded-full", activeCount > 0 ? "bg-primary animate-pulse" : "bg-muted-foreground/40")} />
+            <span className="text-foreground font-medium">{activeCount} Staff online</span>
           </div>
         </div>
         <div className="flex gap-3 items-center">
-          <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-72 text-muted-foreground text-sm">
+          <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 text-foreground text-sm tabular-nums">
+            <PartIcon className="w-4 h-4 text-primary" />
+            {now.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+          <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 w-60 text-muted-foreground text-sm">
             <Search className="w-4 h-4" />
             <span>Zoeken...</span>
             <kbd className="ml-auto text-[10px] bg-secondary border border-border rounded px-1.5 py-0.5">/</kbd>
@@ -71,7 +121,7 @@ export function AdminDashboard() {
 
       {/* Bento grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5 auto-rows-[minmax(0,auto)]">
-        {/* HERO: announcements with audience tabs (spans 2x2) */}
+        {/* HERO: announcements */}
         <div className="md:col-span-2 md:row-span-2 rounded-3xl bg-card border border-border p-6 flex flex-col gap-4 min-h-[320px]">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-1 p-1 bg-secondary rounded-xl w-fit">
@@ -155,32 +205,62 @@ export function AdminDashboard() {
           <p className="text-[10px] text-muted-foreground mt-2">Uptime 99.8% afgelopen 7d</p>
         </div>
 
-        {/* Active staff avatars */}
+        {/* Active staff */}
         <div className="rounded-3xl bg-card border border-border p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Actieve admins</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Staff online nu</span>
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <div className="flex -space-x-3 mt-2">
-            {(activity.slice(0, 4) || []).map((a, i) => (
+          <div className="flex items-end gap-2">
+            <p className="text-3xl font-semibold text-foreground tabular-nums">{activeCount}</p>
+            <p className="text-xs text-muted-foreground mb-1">van {stats?.adminCount ?? 0}</p>
+          </div>
+          <div className="flex -space-x-2 mt-3">
+            {activeStaff.slice(0, 5).map((a, i) => (
               <div
                 key={i}
-                className="size-10 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center font-bold text-xs text-primary"
-                title={a.username}
+                className="size-9 rounded-full bg-primary/20 border-2 border-card flex items-center justify-center font-bold text-xs text-primary"
+                title={`${a.username} • ${a.roles?.name || a.role}`}
+                style={a.roles?.color ? { color: a.roles.color, borderColor: a.roles.color + "40" } : undefined}
               >
                 {a.username?.[0]?.toUpperCase() || "?"}
               </div>
             ))}
-            {activity.length === 0 && (
-              <div className="text-xs text-muted-foreground">Geen activiteit</div>
+            {activeCount === 0 && (
+              <div className="text-xs text-muted-foreground">Niemand actief (laatste 15 min)</div>
             )}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-3">Laatste 24u</p>
         </div>
 
-        {/* Stats row */}
-        <StatTile label="Wachtende sollicitaties" value={stats?.pending ?? 0} icon={FileText} />
-        <StatTile label="Afmeldingen actief" value={stats?.activeAbsences ?? 0} icon={CalendarOff} />
+        {/* Stats row — alleen tonen als perm */}
+        {showApplications && (
+          <StatTile
+            label="Wachtende sollicitaties"
+            value={stats?.pending ?? 0}
+            icon={FileText}
+            onClick={() => navigate("applications")}
+          />
+        )}
+        {showAbsences && (
+          <StatTile
+            label="Afmeldingen actief"
+            value={stats?.activeAbsences ?? 0}
+            icon={CalendarOff}
+            onClick={() => navigate("absences")}
+          />
+        )}
+        {!showApplications && !showAbsences && showPositions && (
+          <StatTile
+            label="Open posities"
+            value={stats?.openPositions ?? 0}
+            icon={Zap}
+            onClick={() => navigate("positions")}
+          />
+        )}
+        {/* Fun fact tile vult de rij als andere niet zichtbaar zijn */}
+        {(!showApplications || !showAbsences) && (
+          <FunFactTile fact={funFact} />
+        )}
 
         {/* Leaderboard (spans 2) */}
         <div className="md:col-span-2 rounded-3xl bg-card border border-border p-5">
@@ -213,34 +293,38 @@ export function AdminDashboard() {
           )}
         </div>
 
-        {/* Activity feed (spans 2) */}
-        <div className="md:col-span-2 rounded-3xl bg-card border border-border p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Activity className="w-4 h-4 text-primary" /> Recente activiteit
-            </h3>
-          </div>
-          {activity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Geen activiteit</p>
-          ) : (
-            <div className="space-y-3">
-              {activity.slice(0, 5).map((a) => (
-                <div key={a.id} className="flex items-start gap-3 text-sm">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-foreground font-medium">{a.username}</span>{" "}
-                    <span className="text-muted-foreground">{a.action}</span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                    {new Date(a.created_at).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                </div>
-              ))}
+        {/* Activity feed (spans 2) — alleen als activity_view */}
+        {has("activity_view") ? (
+          <div className="md:col-span-2 rounded-3xl bg-card border border-border p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" /> Recente activiteit
+              </h3>
             </div>
-          )}
-        </div>
+            {activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Geen activiteit</p>
+            ) : (
+              <div className="space-y-3">
+                {activity.slice(0, 5).map((a) => (
+                  <div key={a.id} className="flex items-start gap-3 text-sm">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-foreground font-medium">{a.username}</span>{" "}
+                      <span className="text-muted-foreground">{a.action}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {new Date(a.created_at).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <MotivationalTile username={user?.username} />
+        )}
 
-        {/* Quick actions (spans 4) — alleen acties waar je toegang toe hebt */}
+        {/* Quick actions */}
         <div className="md:col-span-4 rounded-3xl bg-card border border-border p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" /> Snelle acties
@@ -252,14 +336,54 @@ export function AdminDashboard() {
   );
 }
 
-function StatTile({ label, value, icon: Icon }: { label: string; value: number | string; icon: React.ElementType }) {
+function navigate(page: string) {
+  window.dispatchEvent(new CustomEvent("admin:navigate", { detail: page }));
+}
+
+function StatTile({
+  label, value, icon: Icon, onClick,
+}: { label: string; value: number | string; icon: React.ElementType; onClick?: () => void }) {
+  const Comp: any = onClick ? "button" : "div";
   return (
-    <div className="rounded-3xl bg-card border border-border p-5">
+    <Comp
+      onClick={onClick}
+      className={cn(
+        "rounded-3xl bg-card border border-border p-5 text-left w-full",
+        onClick && "hover:border-primary/40 hover:bg-card/80 transition-colors"
+      )}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</span>
         <Icon className="w-4 h-4 text-primary" />
       </div>
       <p className="text-3xl font-semibold text-foreground tabular-nums">{value}</p>
+    </Comp>
+  );
+}
+
+function FunFactTile({ fact }: { fact: string }) {
+  return (
+    <div className="rounded-3xl bg-gradient-to-br from-primary/10 via-card to-card border border-primary/20 p-5">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] uppercase tracking-widest text-primary/80">Wist je dat?</span>
+        <Gamepad2 className="w-4 h-4 text-primary" />
+      </div>
+      <p className="text-sm text-foreground leading-relaxed">{fact}</p>
+    </div>
+  );
+}
+
+function MotivationalTile({ username }: { username?: string }) {
+  return (
+    <div className="md:col-span-2 rounded-3xl bg-gradient-to-br from-primary/15 via-card to-card border border-primary/20 p-6 flex items-center gap-4">
+      <div className="size-14 rounded-2xl bg-primary/20 flex items-center justify-center">
+        <PartyPopper className="w-7 h-7 text-primary" />
+      </div>
+      <div>
+        <p className="text-base font-semibold text-foreground">Hé {username}, jij bent een legend 🌟</p>
+        <p className="text-sm text-muted-foreground">Bedankt voor het draaiend houden van PichuMC.</p>
+      </div>
+      <Flame className="ml-auto w-6 h-6 text-primary/60" />
     </div>
   );
 }
@@ -278,19 +402,20 @@ function QuickActions({ user }: { user: any }) {
     { perm: "owner_panel", page: "owner", icon: Crown, label: "Owner Panel" },
     { perm: "activity_view", page: "activity", icon: Activity, label: "Activiteit log" },
   ];
-  const visible = all.filter((a) => has(a.perm)).slice(0, 8);
+  // Iedereen mag eigen taken zien — voeg fallback toe
+  const visible = all.filter((a) => has(a.perm));
+  // Altijd 'Mijn Taken' beschikbaar voor iedere staff
+  if (!visible.find((v) => v.page === "tasks")) {
+    visible.unshift({ perm: "*", page: "tasks", icon: FileText, label: "Mijn Taken" });
+  }
 
   if (visible.length === 0) {
     return <p className="text-sm text-muted-foreground">Geen acties beschikbaar voor je rol.</p>;
   }
 
-  const navigate = (page: string) => {
-    window.dispatchEvent(new CustomEvent("admin:navigate", { detail: page }));
-  };
-
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {visible.map((a) => (
+      {visible.slice(0, 8).map((a) => (
         <button
           key={a.page}
           onClick={() => navigate(a.page)}
