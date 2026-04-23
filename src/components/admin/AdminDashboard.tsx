@@ -57,15 +57,32 @@ export function AdminDashboard() {
   const activeStaff: any[] = stats?.activeStaff || [];
   const activeCount: number = stats?.activeStaffCount ?? 0;
 
-  // Leaderboard uit activity
-  const leaderboard = Object.entries(
-    activity.reduce((acc: Record<string, number>, a) => {
-      acc[a.username] = (acc[a.username] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .sort((a, b) => (b[1] as number) - (a[1] as number))
-    .slice(0, 4);
+  // Top online: combineer activity counts (vandaag) met online status
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayMs = todayStart.getTime();
+  const counts: Record<string, number> = {};
+  activity.forEach((a) => {
+    if (new Date(a.created_at).getTime() >= todayMs) {
+      counts[a.username] = (counts[a.username] || 0) + 1;
+    }
+  });
+  // Voeg ook online staff toe (zelfs zonder vandaag-activity → 1 baseline)
+  activeStaffEnsure: {
+    // niets — onderstaande logica gebruikt activeStaff direct
+  }
+  const activeStaffNames = new Set(activeStaff.map((s) => s.username));
+  activeStaff.forEach((s) => {
+    if (!(s.username in counts)) counts[s.username] = 0;
+  });
+  const leaderboard = Object.entries(counts)
+    .sort((a, b) => {
+      const aOnline = activeStaffNames.has(a[0]) ? 1 : 0;
+      const bOnline = activeStaffNames.has(b[0]) ? 1 : 0;
+      if (aOnline !== bOnline) return bOnline - aOnline;
+      return (b[1] as number) - (a[1] as number);
+    })
+    .slice(0, 8);
+  const maxCount = Math.max(1, ...leaderboard.map((e) => e[1] as number));
 
   const bars = [40, 65, 50, 80, 35, 90, 70];
   const hour = now.getHours();
