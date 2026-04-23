@@ -1,16 +1,40 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getPublicPositions } from "@/lib/api";
+import { PositionCard } from "@/components/PositionCard";
+import { ApplicationModal } from "@/components/ApplicationModal";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const [selectedPosition, setSelectedPosition] = useState<any>(null);
+  const { data: positions = [], isLoading } = useQuery({
+    queryKey: ["positions"],
+    queryFn: getPublicPositions,
+  });
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background">
+      <div className="max-w-6xl mx-auto px-4 py-16">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold text-primary mb-4">Staff Sollicitaties</h1>
+          <p className="text-muted-foreground text-lg max-w-xl mx-auto">
+            Word onderdeel van het PichuMC team! Kies een positie hieronder om te solliciteren.
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center text-muted-foreground">Laden...</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {positions.map((pos: any) => (
+              <PositionCard key={pos.id} position={pos} onApply={setSelectedPosition} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ApplicationModal position={selectedPosition} open={!!selectedPosition} onClose={() => setSelectedPosition(null)} />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
