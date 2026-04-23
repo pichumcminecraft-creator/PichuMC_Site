@@ -39,6 +39,17 @@ const MC_SERVERS = [
   { key: "events", name: "Events", host: "node-07.bluxnetwork.eu", port: 25000 },
 ] as const;
 
+const DB_INFO = {
+  endpoint: "5.175.192.176:3306",
+  host: "5.175.192.176",
+  port: "3306",
+  connectionsFrom: "%",
+  username: "u161_hp1IoNxLiQ",
+  password: "6KsbZLtIwL3xhwK4+h3@!E4h",
+  database: "s161_SitePichumc",
+  jdbc: "jdbc:mysql://u161_hp1IoNxLiQ:6KsbZLtIwL3xhwK4%2Bh3%40!E4h@5.175.192.176:3306/s161_SitePichumc",
+} as const;
+
 const SUPPORTED_ACTIONS = new Set([
   "delete-rejected-applications",
   "close-all-positions",
