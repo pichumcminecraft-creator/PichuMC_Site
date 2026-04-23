@@ -427,7 +427,72 @@ function Vital({ icon: Icon, label, value }: { icon: React.ElementType; label: s
   );
 }
 
-function downloadCsv(name: string, rows: any[]) {
+function McServerCard({ s }: { s: any }) {
+  const address = `${s.host}:${s.port}`;
+  const copy = () => {
+    navigator.clipboard.writeText(address).then(() => toast.success("Adres gekopieerd"));
+  };
+  const pct = s.online && s.max > 0 ? Math.min(100, Math.round((s.players / s.max) * 100)) : 0;
+  return (
+    <div className={cn(
+      "rounded-2xl border p-4 transition-colors",
+      s.online
+        ? "bg-secondary border-border hover:border-primary/40"
+        : "bg-destructive/5 border-destructive/20"
+    )}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "size-2 rounded-full",
+              s.online ? "bg-primary animate-pulse" : "bg-destructive"
+            )} />
+            <p className="text-sm font-semibold text-foreground">{s.name}</p>
+          </div>
+          <button
+            onClick={copy}
+            className="text-[11px] text-muted-foreground font-mono hover:text-primary transition-colors mt-0.5"
+            title="Klik om te kopiëren"
+          >
+            {address}
+          </button>
+        </div>
+        <span className={cn(
+          "text-[10px] px-2 py-0.5 rounded-full border font-medium uppercase tracking-wider",
+          s.online
+            ? "bg-primary/10 text-primary border-primary/30"
+            : "bg-destructive/10 text-destructive border-destructive/30"
+        )}>
+          {s.online ? "Online" : "Offline"}
+        </span>
+      </div>
+
+      {s.online ? (
+        <div className="mt-3">
+          <div className="flex items-baseline justify-between text-xs mb-1.5">
+            <span className="text-muted-foreground">Spelers</span>
+            <span className="text-foreground tabular-nums font-semibold">
+              {s.players}{s.max ? <span className="text-muted-foreground"> / {s.max}</span> : ""}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-card overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${Math.max(pct, s.players > 0 ? 4 : 0)}%` }}
+            />
+          </div>
+          {s.version && (
+            <p className="text-[10px] text-muted-foreground mt-2 truncate">
+              {s.version}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-destructive/80 mt-3">Server reageert niet</p>
+      )}
+    </div>
+  );
+}
   if (!rows.length) {
     toast.info("Geen data om te exporteren");
     return;
