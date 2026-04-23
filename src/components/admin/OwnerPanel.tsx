@@ -404,7 +404,10 @@ export function OwnerPanel() {
         )}
       </div>
 
-      {/* Sections */}
+      {/* MySQL Database */}
+      <DatabaseWidget />
+
+
       {availableActions.map((sec) => (
         <div key={sec.section} className="rounded-3xl bg-card border border-border p-6">
           <div className="flex items-center gap-2 mb-4">
