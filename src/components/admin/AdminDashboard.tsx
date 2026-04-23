@@ -67,9 +67,6 @@ export function AdminDashboard() {
     }
   });
   // Voeg ook online staff toe (zelfs zonder vandaag-activity → 1 baseline)
-  activeStaffEnsure: {
-    // niets — onderstaande logica gebruikt activeStaff direct
-  }
   const activeStaffNames = new Set(activeStaff.map((s) => s.username));
   activeStaff.forEach((s) => {
     if (!(s.username in counts)) counts[s.username] = 0;
