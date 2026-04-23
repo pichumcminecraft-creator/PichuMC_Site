@@ -493,6 +493,8 @@ function McServerCard({ s }: { s: any }) {
     </div>
   );
 }
+
+function downloadCsv(name: string, rows: any[]) {
   if (!rows.length) {
     toast.info("Geen data om te exporteren");
     return;
