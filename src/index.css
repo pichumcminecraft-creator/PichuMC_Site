@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 25% 7%;
+    --foreground: 210 40% 92%;
+
+    --card: 220 20% 10%;
+    --card-foreground: 210 40% 92%;
+
+    --popover: 220 20% 10%;
+    --popover-foreground: 210 40% 92%;
+
+    --primary: 43 96% 56%;
+    --primary-foreground: 220 25% 7%;
+
+    --secondary: 220 15% 16%;
+    --secondary-foreground: 210 40% 92%;
+
+    --muted: 220 15% 16%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 220 15% 16%;
+    --accent-foreground: 210 40% 92%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 145 63% 42%;
+    --success-foreground: 210 40% 98%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 43 96% 56%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 220 20% 10%;
+    --sidebar-foreground: 210 40% 92%;
+    --sidebar-primary: 43 96% 56%;
+    --sidebar-primary-foreground: 220 25% 7%;
+    --sidebar-accent: 220 15% 16%;
+    --sidebar-accent-foreground: 210 40% 92%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 43 96% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+@layer utilities {
+  .card-glow {
+    box-shadow: 0 0 0 1px hsl(var(--border)), 0 4px 24px -4px rgba(0, 0, 0, 0.5);
+  }
+  .card-glow-gold {
+    box-shadow: 0 0 0 1px hsl(43 96% 56% / 0.3), 0 4px 24px -4px rgba(0, 0, 0, 0.5);
+  }
+}
