@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity,
   Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2,
-  RefreshCw, Globe, Users
+  RefreshCw, Globe, Users, Eye, EyeOff, Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,17 @@ const MC_SERVERS = [
   { key: "skyblock", name: "Skyblock", host: "node-07.bluxnetwork.eu", port: 25002 },
   { key: "events", name: "Events", host: "node-07.bluxnetwork.eu", port: 25000 },
 ] as const;
+
+const DB_INFO = {
+  endpoint: "5.175.192.176:3306",
+  host: "5.175.192.176",
+  port: "3306",
+  connectionsFrom: "%",
+  username: "u161_hp1IoNxLiQ",
+  password: "6KsbZLtIwL3xhwK4+h3@!E4h",
+  database: "s161_SitePichumc",
+  jdbc: "jdbc:mysql://u161_hp1IoNxLiQ:6KsbZLtIwL3xhwK4%2Bh3%40!E4h@5.175.192.176:3306/s161_SitePichumc",
+} as const;
 
 const SUPPORTED_ACTIONS = new Set([
   "delete-rejected-applications",
@@ -186,7 +197,7 @@ export function OwnerPanel() {
     }),
   })).filter((section) => section.items.length > 0), [user]);
 
-  const loadMc = async () => {
+  const loadMc = async (manual = false) => {
     setMcLoading(true);
     try {
       const results = await Promise.all(
@@ -209,6 +220,7 @@ export function OwnerPanel() {
       );
       setMcServers(results);
       setMcCheckedAt(new Date().toISOString());
+      if (manual) toast.success("Serverstatus bijgewerkt");
     } catch (e: any) {
       toast.error(e?.message || "Kon serverstatus niet laden");
     } finally {
@@ -219,7 +231,7 @@ export function OwnerPanel() {
   useEffect(() => {
     adminFetch("stats").then(setStats).catch(() => {});
     loadMc();
-    const t = setInterval(loadMc, 60_000);
+    const t = setInterval(() => loadMc(false), 60_000);
     return () => clearInterval(t);
   }, []);
 
@@ -353,7 +365,7 @@ export function OwnerPanel() {
               </span>
             )}
           </div>
-          <Button size="sm" variant="ghost" onClick={loadMc} disabled={mcLoading} className="h-7 gap-1 text-xs">
+          <Button size="sm" variant="ghost" onClick={() => loadMc(true)} disabled={mcLoading} className="h-7 gap-1 text-xs">
             <RefreshCw className={cn("w-3 h-3", mcLoading && "animate-spin")} /> Verversen
           </Button>
         </div>
@@ -392,7 +404,10 @@ export function OwnerPanel() {
         )}
       </div>
 
-      {/* Sections */}
+      {/* MySQL Database */}
+      <DatabaseWidget />
+
+
       {availableActions.map((sec) => (
         <div key={sec.section} className="rounded-3xl bg-card border border-border p-6">
           <div className="flex items-center gap-2 mb-4">
@@ -609,6 +624,79 @@ function McServerCard({ s }: { s: any }) {
       ) : (
         <p className="text-xs text-destructive/80 mt-3">Server reageert niet</p>
       )}
+    </div>
+  );
+}
+
+function CopyField({ label, value, monospace = false, sensitive = false }: { label: string; value: string; monospace?: boolean; sensitive?: boolean }) {
+  const [shown, setShown] = useState(!sensitive);
+  const masked = sensitive && !shown ? "•".repeat(Math.min(value.length, 16)) : value;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} gekopieerd`);
+    } catch {
+      toast.error("Kopiëren mislukt");
+    }
+  };
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">{label}</p>
+      <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex-1 px-3 py-2 rounded-lg bg-secondary border border-border text-xs text-foreground truncate",
+          monospace && "font-mono"
+        )}>
+          {masked}
+        </div>
+        {sensitive && (
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setShown(s => !s)}>
+            {shown ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </Button>
+        )}
+        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={copy}>
+          <Copy className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DatabaseWidget() {
+  return (
+    <div className="rounded-3xl bg-card border border-border p-6">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Database className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">MySQL Database</h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 font-semibold">
+            Actief
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground font-mono">{DB_INFO.database}</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <CopyField label="Endpoint" value={DB_INFO.endpoint} monospace />
+        <CopyField label="Connections from" value={DB_INFO.connectionsFrom} monospace />
+        <CopyField label="Username" value={DB_INFO.username} monospace />
+        <CopyField label="Database" value={DB_INFO.database} monospace />
+        <CopyField label="Host" value={DB_INFO.host} monospace />
+        <CopyField label="Port" value={DB_INFO.port} monospace />
+      </div>
+
+      <div className="space-y-3">
+        <CopyField label="Password" value={DB_INFO.password} monospace sensitive />
+        <CopyField label="JDBC connection string" value={DB_INFO.jdbc} monospace sensitive />
+      </div>
+
+      <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-destructive/5 border border-destructive/20">
+        <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground">
+          Deze credentials geven volledige toegang tot de productie-database. Deel ze nooit en roteer het wachtwoord
+          regelmatig via je hosting paneel.
+        </p>
+      </div>
     </div>
   );
 }
