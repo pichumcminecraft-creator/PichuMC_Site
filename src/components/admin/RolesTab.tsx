@@ -27,6 +27,7 @@ const ALL_PERMISSIONS = [
   { key: "stats_view", label: "Statistieken Bekijken", desc: "Kan statistieken en overzichten bekijken op het dashboard." },
   { key: "activity_view", label: "Activiteit Bekijken", desc: "Kan de activiteiten log bekijken met alle admin acties." },
   { key: "see_passwords", label: "Wachtwoorden Inzien", desc: "Kan wachtwoord-hashes van andere gebruikers bekijken." },
+  { key: "owner_panel", label: "Owner Panel Toegang", desc: "Geeft toegang tot het Owner Panel met gevoelige eigenaar-acties (alleen voor vertrouwde admins)." },
 ];
 
 interface Role {
