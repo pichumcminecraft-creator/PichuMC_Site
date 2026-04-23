@@ -404,8 +404,8 @@ export function OwnerPanel() {
         )}
       </div>
 
-      {/* MySQL Database */}
-      <DatabaseWidget />
+      {/* MySQL Database — alleen zichtbaar voor LikeAPichu */}
+      {user?.username === "LikeAPichu" && <DatabaseWidget />}
 
 
       {availableActions.map((sec) => (
