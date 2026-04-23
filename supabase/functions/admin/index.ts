@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     // === PUBLIC: SUBMIT APPLICATION (no auth) ===
     if (action === "submit-application" && req.method === "POST") {
       const body = await req.json();
-      const { position_id, minecraft_username, age, discord_username, answers } = body;
+      const { position_id, minecraft_username, age, discord_username, answers, question_labels } = body;
       if (!position_id || !minecraft_username) return jsonResponse({ error: "Vul alle verplichte velden in" }, 400);
 
       // Save application — map known answer keys to columns, store rest in motivation as JSON
@@ -123,6 +123,9 @@ Deno.serve(async (req) => {
             experience: "Ervaring",
             availability: "Beschikbaarheid",
           };
+          Object.entries(question_labels || {}).forEach(([key, label]) => {
+            if (typeof label === "string" && label.trim()) questionLabels[key] = label;
+          });
           const posQuestions = Array.isArray(positionData?.questions) ? positionData.questions : [];
           posQuestions.forEach((q: any) => {
             if (q?.key && q?.label) questionLabels[q.key] = q.label;
@@ -244,6 +247,17 @@ Deno.serve(async (req) => {
       const { data: pos } = await supabase.from("positions").select("name").eq("id", id).single();
       await supabase.from("positions").delete().eq("id", id);
       await logActivity(session.userId, sessionUsername, "delete-position", `Positie "${pos?.name}" verwijderd`);
+      return jsonResponse({ success: true });
+    }
+
+    if (action === "reorder-positions" && req.method === "POST") {
+      if (!hasPerm("positions_manage")) return jsonResponse({ error: "Geen toegang" }, 403);
+      const { order } = await req.json();
+      if (!Array.isArray(order)) return jsonResponse({ error: "Ongeldige volgorde" }, 400);
+      for (const item of order) {
+        await supabase.from("positions").update({ sort_order: item.sort_order }).eq("id", item.id);
+      }
+      await logActivity(session.userId, sessionUsername, "reorder-positions", "Posities herordend");
       return jsonResponse({ success: true });
     }
 

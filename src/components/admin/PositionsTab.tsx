@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Shield, Code, Video, Calendar, Hammer, Megaphone, ChevronDown, ChevronRight, Plus, Trash2, Save, X } from "lucide-react";
+import { Shield, Code, Video, Calendar, Hammer, Megaphone, ChevronDown, ChevronRight, Plus, Trash2, Save, X, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
 const iconOptions = [
@@ -90,6 +90,28 @@ export function PositionsTab({ onRefresh }: { onRefresh: () => void }) {
       toast.success("Positie verwijderd!");
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const movePosition = async (index: number, direction: -1 | 1) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= positions.length) return;
+
+    const newPositions = [...positions];
+    [newPositions[index], newPositions[newIndex]] = [newPositions[newIndex], newPositions[index]];
+    setPositions(newPositions);
+
+    try {
+      await adminFetch("reorder-positions", {
+        order: newPositions.map((position, positionIndex) => ({
+          id: position.id,
+          sort_order: positionIndex,
+        })),
+      });
+      onRefresh();
+    } catch {
+      toast.error("Fout bij herordenen");
+      load();
     }
   };
 
@@ -193,6 +215,14 @@ export function PositionsTab({ onRefresh }: { onRefresh: () => void }) {
                 {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground ml-2" /> : <ChevronRight className="w-4 h-4 text-muted-foreground ml-2" />}
               </button>
               <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                  <button onClick={() => movePosition(index, -1)} disabled={index === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-20 p-1">
+                    <ArrowUp className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => movePosition(index, 1)} disabled={index === positions.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-20 p-1">
+                    <ArrowDown className="w-3 h-3" />
+                  </button>
+                </div>
                 <span className="text-sm text-muted-foreground">{pos.is_open ? "Open" : "Dicht"}</span>
                 <Switch checked={pos.is_open} onCheckedChange={() => toggleOpen(pos)} />
               </div>

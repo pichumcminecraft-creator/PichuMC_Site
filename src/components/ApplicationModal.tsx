@@ -53,6 +53,7 @@ export function ApplicationModal({ position, open, onClose }: { position: Positi
         age: age ? parseInt(age) : undefined,
         discord_username: discord || undefined,
         answers,
+        question_labels: Object.fromEntries(questions.map((q) => [q.key, q.label])),
       });
       toast.success("Sollicitatie verstuurd! We nemen snel contact op.");
       setMinecraft(""); setAge(""); setDiscord(""); setAnswers({});
