@@ -240,17 +240,12 @@ export function AdminDashboard() {
           )}
         </div>
 
-        {/* Quick actions (spans 4) */}
+        {/* Quick actions (spans 4) — alleen acties waar je toegang toe hebt */}
         <div className="md:col-span-4 rounded-3xl bg-card border border-border p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" /> Snelle acties
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <QuickAction icon={Megaphone} label="Mededeling plaatsen" />
-            <QuickAction icon={CalendarOff} label="Afmelding goedkeuren" />
-            <QuickAction icon={FileText} label="Sollicitaties bekijken" />
-            <QuickAction icon={Users2} label="Team beheren" />
-          </div>
+          <QuickActions user={user} />
         </div>
       </div>
     </div>
@@ -269,13 +264,44 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: number |
   );
 }
 
-function QuickAction({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+function QuickActions({ user }: { user: any }) {
+  const isOwner = user?.role === "eigenaar";
+  const has = (perm: string) => isOwner || user?.permissions?.[perm] === true;
+
+  const all: { perm: string; page: string; icon: React.ElementType; label: string }[] = [
+    { perm: "announcements_manage", page: "announcements", icon: Megaphone, label: "Mededeling plaatsen" },
+    { perm: "absences_manage", page: "absences", icon: CalendarOff, label: "Afmeldingen beheren" },
+    { perm: "applications_view", page: "applications", icon: FileText, label: "Sollicitaties bekijken" },
+    { perm: "users_view", page: "team", icon: Users2, label: "Team bekijken" },
+    { perm: "positions_view", page: "positions", icon: Zap, label: "Posities beheren" },
+    { perm: "tasks_manage", page: "tasks", icon: FileText, label: "Taken bekijken" },
+    { perm: "owner_panel", page: "owner", icon: Crown, label: "Owner Panel" },
+    { perm: "activity_view", page: "activity", icon: Activity, label: "Activiteit log" },
+  ];
+  const visible = all.filter((a) => has(a.perm)).slice(0, 8);
+
+  if (visible.length === 0) {
+    return <p className="text-sm text-muted-foreground">Geen acties beschikbaar voor je rol.</p>;
+  }
+
+  const navigate = (page: string) => {
+    window.dispatchEvent(new CustomEvent("admin:navigate", { detail: page }));
+  };
+
   return (
-    <button className="flex items-center gap-3 p-3 rounded-xl bg-secondary hover:bg-secondary/70 border border-border hover:border-primary/30 transition-all text-left group">
-      <div className="size-9 rounded-lg bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
-        <Icon className="w-4 h-4 text-primary" />
-      </div>
-      <span className="text-sm font-medium text-foreground">{label}</span>
-    </button>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {visible.map((a) => (
+        <button
+          key={a.page}
+          onClick={() => navigate(a.page)}
+          className="flex items-center gap-3 p-3 rounded-xl bg-secondary hover:bg-secondary/70 border border-border hover:border-primary/30 transition-all text-left group"
+        >
+          <div className="size-9 rounded-lg bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+            <a.icon className="w-4 h-4 text-primary" />
+          </div>
+          <span className="text-sm font-medium text-foreground">{a.label}</span>
+        </button>
+      ))}
+    </div>
   );
 }

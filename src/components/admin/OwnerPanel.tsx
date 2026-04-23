@@ -1,16 +1,171 @@
-import { useState } from "react";
-import { Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity,
+  Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { getAdminUser } from "@/lib/api";
+import { adminFetch, getAdminUser } from "@/lib/api";
+import { toast } from "sonner";
 
-/**
- * OwnerPanel — exclusieve eigenaar/owner_panel weergave.
- * Bewust ander UI dan dashboard: donker, "command bridge" stijl.
- */
+type ActionDef = {
+  id: string;
+  label: string;
+  short: string;
+  description: string;
+  detail: string;          // exact wat het doet
+  consequences: string[];  // gevolgen
+  icon: React.ElementType;
+  danger?: boolean;
+  confirmText?: string;    // typed-confirmation woord, optioneel
+  produces?: "csv";        // download
+};
+
+const ACTIONS: { section: string; items: ActionDef[] }[] = [
+  {
+    section: "Onderhoud & Opschonen",
+    items: [
+      {
+        id: "clear-old-activity",
+        label: "Oude activiteit opschonen",
+        short: "Verwijder activity-log ouder dan 30 dagen",
+        description: "Houdt je database licht en voorkomt eindeloze logs.",
+        detail: "Verwijdert alle rijen uit activity_log waarvan created_at > 30 dagen geleden is. Recente activiteit (laatste 30 dagen) blijft staan.",
+        consequences: [
+          "Oude activity-log rijen worden permanent verwijderd",
+          "Audit trail van vóór 30 dagen geleden gaat verloren",
+          "Geen impact op gebruikers, sollicitaties of posities",
+        ],
+        icon: Trash2,
+        danger: false,
+      },
+      {
+        id: "delete-rejected-applications",
+        label: "Afgewezen sollicitaties verwijderen",
+        short: "Ruim alle 'afgewezen' sollicitaties op",
+        description: "Verwijdert sollicitaties die de status 'afgewezen' hebben.",
+        detail: "Alle records in de tabel applications met status = 'afgewezen' worden verwijderd. Geaccepteerde en wachtende sollicitaties blijven onaangetast.",
+        consequences: [
+          "Afgewezen sollicitaties zijn niet meer terug te halen",
+          "Statistieken voor 'afgewezen' worden 0",
+          "Discord-berichten in kanalen blijven bestaan",
+        ],
+        icon: Trash2,
+        danger: true,
+        confirmText: "VERWIJDER",
+      },
+    ],
+  },
+  {
+    section: "Posities (bulk)",
+    items: [
+      {
+        id: "close-all-positions",
+        label: "Alle posities sluiten",
+        short: "Zet elke openstaande positie op gesloten",
+        description: "Tijdelijk de hele aanmeldsite dichtzetten.",
+        detail: "Updates alle records in positions waar is_open = true naar is_open = false. Gebruikers kunnen tijdelijk niet solliciteren.",
+        consequences: [
+          "Apply-pagina toont geen posities meer",
+          "Bestaande sollicitaties blijven bestaan",
+          "Te ontdoen via 'Alle posities openen'",
+        ],
+        icon: FolderClosed,
+        danger: true,
+        confirmText: "SLUIT",
+      },
+      {
+        id: "open-all-positions",
+        label: "Alle posities openen",
+        short: "Maak alle gesloten posities weer beschikbaar",
+        description: "Snel alles weer live zetten.",
+        detail: "Updates alle records in positions waar is_open = false naar is_open = true.",
+        consequences: [
+          "Alle posities verschijnen weer op de Apply pagina",
+          "Sollicitaties kunnen direct binnenkomen",
+        ],
+        icon: FolderOpen,
+        danger: false,
+      },
+    ],
+  },
+  {
+    section: "Exports",
+    items: [
+      {
+        id: "export-activity",
+        label: "Activity log exporteren",
+        short: "Download laatste 5000 rijen als CSV",
+        description: "Voor audits of externe analyse.",
+        detail: "Haalt de laatste 5000 records uit activity_log en levert een CSV bestand op (download in je browser).",
+        consequences: [
+          "Geen wijzigingen in de database",
+          "Bestand bevat usernames en acties — bewaar veilig",
+        ],
+        icon: Download,
+        produces: "csv",
+      },
+      {
+        id: "export-users",
+        label: "Gebruikerslijst exporteren",
+        short: "Download alle admin gebruikers als CSV",
+        description: "Lijst van staff inclusief rol en laatste login.",
+        detail: "Exporteert id, username, rol en last_online voor alle admin_users.",
+        consequences: [
+          "Geen wijzigingen in de database",
+          "Wachtwoord-hashes worden NIET geëxporteerd",
+        ],
+        icon: Download,
+        produces: "csv",
+      },
+    ],
+  },
+];
+
 export function OwnerPanel() {
   const user = getAdminUser();
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [stats, setStats] = useState<any>(null);
+  const [open, setOpen] = useState<ActionDef | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  useEffect(() => { adminFetch("stats").then(setStats).catch(() => {}); }, []);
+
+  const close = () => {
+    setOpen(null); setPassword(""); setConfirm(""); setResult(null); setBusy(false);
+  };
+
+  const execute = async () => {
+    if (!open) return;
+    if (open.confirmText && confirm !== open.confirmText) {
+      toast.error(`Typ "${open.confirmText}" om te bevestigen`);
+      return;
+    }
+    if (!password) { toast.error("Wachtwoord vereist"); return; }
+    setBusy(true);
+    try {
+      const data = await adminFetch("owner-action", { action: open.id, password });
+      if (open.produces === "csv") {
+        downloadCsv(open.id, data.rows || []);
+      }
+      const deleted = typeof data.deleted === "number" ? ` (${data.deleted} rijen)` : "";
+      setResult({ ok: true, msg: `Succesvol uitgevoerd${deleted}` });
+      toast.success(`${open.label} voltooid`);
+      adminFetch("stats").then(setStats).catch(() => {});
+    } catch (err: any) {
+      setResult({ ok: false, msg: err.message || "Er ging iets mis" });
+      toast.error(err.message || "Fout");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -26,8 +181,8 @@ export function OwnerPanel() {
             </div>
             <h1 className="text-3xl font-bold text-foreground">Volledige Controle</h1>
             <p className="text-sm text-muted-foreground mt-2 max-w-lg">
-              Welkom, {user?.username}. Hier vind je acties die alleen voor de eigenaar zijn — gevoelige
-              instellingen, kritieke acties en systeemdiagnostiek.
+              Welkom, {user?.username}. Acties hier zijn direct van invloed op de live database. Iedere actie
+              vereist je wachtwoord ter bevestiging.
             </p>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-destructive/15 border border-destructive/30">
@@ -37,137 +192,187 @@ export function OwnerPanel() {
         </div>
       </div>
 
-      {/* Vitals row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Vital icon={Server} label="Server status" value="Operationeel" tone="ok" />
-        <Vital icon={Database} label="Database" value="Verbonden" tone="ok" />
-        <Vital icon={Cpu} label="Edge functies" value="Live" tone="ok" />
+      {/* Vitals */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Vital icon={Server} label="Server" value="Operationeel" />
+        <Vital icon={Database} label="Database" value="Verbonden" />
+        <Vital icon={Cpu} label="Edge functies" value="Live" />
+        <Vital icon={Activity} label="Admins" value={String(stats?.adminCount ?? "-")} />
       </div>
 
-      {/* Action sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <Section
-          title="Systeem Acties"
-          icon={Sparkles}
-          items={[
-            { label: "Cache leegmaken", desc: "Verwijder alle gecachte query data.", danger: false },
-            { label: "Activity log exporteren", desc: "Download volledige audit log als CSV.", danger: false },
-            { label: "Sessies verlopen forceren", desc: "Log alle staff direct uit.", danger: true },
-          ]}
-        />
-        <Section
-          title="Permissies & Rollen"
-          icon={ShieldAlert}
-          items={[
-            { label: "Owner toewijzen aan andere user", desc: "Draag eigenaarschap permanent over.", danger: true },
-            { label: "Bulk rol aanpassen", desc: "Pas rol van meerdere admins tegelijk aan.", danger: false },
-            { label: "Permissie audit", desc: "Bekijk welke admins welke rechten hebben.", danger: false },
-          ]}
-        />
-      </div>
-
-      {/* Danger zone */}
-      <div className="rounded-3xl border-2 border-destructive/40 bg-destructive/5 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertTriangle className="w-5 h-5 text-destructive" />
-          <h2 className="text-lg font-bold text-destructive">Danger Zone</h2>
-        </div>
-        <div className="space-y-3">
-          <DangerRow
-            title="Reset alle sollicitaties"
-            description="Verwijder ALLE sollicitaties uit de database. Dit kan niet ongedaan worden gemaakt."
-            onConfirm={() => setConfirmOpen(true)}
-          />
-          <DangerRow
-            title="Onderhoud modus inschakelen"
-            description="Sluit de website tijdelijk voor bezoekers. Alleen staff kan inloggen."
-            onConfirm={() => {}}
-          />
-        </div>
-        {confirmOpen && (
-          <div className="mt-4 p-4 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
-            Functie nog niet aangesloten. Bevestig in een latere update.
+      {/* Sections */}
+      {ACTIONS.map((sec) => (
+        <div key={sec.section} className="rounded-3xl bg-card border border-border p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">{sec.section}</h2>
           </div>
-        )}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {sec.items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setOpen(item)}
+                className={cn(
+                  "text-left p-4 rounded-2xl border transition-all flex items-start gap-3 group",
+                  item.danger
+                    ? "bg-destructive/5 border-destructive/20 hover:border-destructive/50 hover:bg-destructive/10"
+                    : "bg-secondary border-border hover:border-primary/40"
+                )}
+              >
+                <div className={cn(
+                  "size-10 rounded-xl flex items-center justify-center shrink-0",
+                  item.danger ? "bg-destructive/15 text-destructive" : "bg-primary/15 text-primary"
+                )}>
+                  <item.icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                    {item.danger && <ShieldAlert className="w-3.5 h-3.5 text-destructive" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{item.short}</p>
+                  <span className="text-[10px] text-primary font-medium mt-2 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
+                    <Info className="w-3 h-3" /> Bekijk details
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
 
-      {/* Live monitor */}
-      <div className="rounded-3xl bg-card border border-border p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Activity className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-semibold text-foreground">Live monitor</h2>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-          {[
-            { l: "API calls / min", v: "247" },
-            { l: "Failed auth", v: "3" },
-            { l: "DB queries", v: "1.2k" },
-            { l: "Avg response", v: "82ms" },
-          ].map((m) => (
-            <div key={m.l} className="p-3 rounded-xl bg-secondary border border-border">
-              <p className="text-xl font-semibold text-foreground tabular-nums">{m.v}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.l}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Detail / confirm dialog */}
+      <Dialog open={!!open} onOpenChange={(v) => !v && close()}>
+        <DialogContent className="sm:max-w-lg">
+          {open && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <open.icon className={cn("w-5 h-5", open.danger ? "text-destructive" : "text-primary")} />
+                  {open.label}
+                </DialogTitle>
+                <DialogDescription>{open.description}</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-2">
+                <div className="rounded-xl bg-secondary border border-border p-3">
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
+                    Wat doet deze actie?
+                  </p>
+                  <p className="text-sm text-foreground">{open.detail}</p>
+                </div>
+
+                <div className={cn(
+                  "rounded-xl p-3 border",
+                  open.danger ? "bg-destructive/5 border-destructive/20" : "bg-primary/5 border-primary/20"
+                )}>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
+                    <AlertTriangle className={cn("w-3 h-3", open.danger ? "text-destructive" : "text-primary")} />
+                    Gevolgen
+                  </p>
+                  <ul className="space-y-1">
+                    {open.consequences.map((c) => (
+                      <li key={c} className="text-xs text-foreground flex items-start gap-2">
+                        <span className="text-muted-foreground mt-0.5">•</span>
+                        <span>{c}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {result ? (
+                  <div className={cn(
+                    "rounded-xl p-3 border flex items-center gap-2 text-sm",
+                    result.ok ? "bg-primary/10 border-primary/30 text-primary" : "bg-destructive/10 border-destructive/30 text-destructive"
+                  )}>
+                    {result.ok ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    {result.msg}
+                  </div>
+                ) : (
+                  <>
+                    {open.confirmText && (
+                      <div>
+                        <Label className="text-xs">
+                          Typ <span className="font-mono text-destructive">{open.confirmText}</span> om te bevestigen
+                        </Label>
+                        <Input
+                          value={confirm}
+                          onChange={(e) => setConfirm(e.target.value)}
+                          placeholder={open.confirmText}
+                          className="mt-1 bg-secondary border-border font-mono"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-xs flex items-center gap-1">
+                        <KeyRound className="w-3 h-3" /> Bevestig met je wachtwoord
+                      </Label>
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Wachtwoord"
+                        className="mt-1 bg-secondary border-border"
+                        autoFocus
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={close}>{result ? "Sluiten" : "Annuleer"}</Button>
+                {!result && (
+                  <Button
+                    onClick={execute}
+                    disabled={busy}
+                    variant={open.danger ? "destructive" : "default"}
+                  >
+                    {busy ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Bezig...</> : "Uitvoeren"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function Vital({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string; tone: "ok" | "warn" }) {
+function Vital({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-card border border-border p-4 flex items-center gap-4">
-      <div className={cn(
-        "size-12 rounded-xl flex items-center justify-center",
-        tone === "ok" ? "bg-primary/15 text-primary" : "bg-destructive/15 text-destructive"
-      )}>
+    <div className="rounded-2xl bg-card border border-border p-4 flex items-center gap-3">
+      <div className="size-10 rounded-xl flex items-center justify-center bg-primary/15 text-primary shrink-0">
         <Icon className="w-5 h-5" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className="text-base font-semibold text-foreground">{value}</p>
+        <p className="text-sm font-semibold text-foreground truncate">{value}</p>
       </div>
     </div>
   );
 }
 
-function Section({ title, icon: Icon, items }: { title: string; icon: React.ElementType; items: { label: string; desc: string; danger?: boolean }[] }) {
-  return (
-    <div className="rounded-3xl bg-card border border-border p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Icon className="w-4 h-4 text-primary" />
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      </div>
-      <div className="space-y-2">
-        {items.map((it) => (
-          <div key={it.label} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-secondary border border-border hover:border-primary/30 transition-all">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">{it.label}</p>
-              <p className="text-xs text-muted-foreground truncate">{it.desc}</p>
-            </div>
-            <Button
-              size="sm"
-              variant={it.danger ? "destructive" : "outline"}
-              className="shrink-0"
-            >
-              Uitvoeren
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DangerRow({ title, description, onConfirm }: { title: string; description: string; onConfirm: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-card border border-destructive/20">
-      <div>
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <Button size="sm" variant="destructive" onClick={onConfirm}>Bevestigen</Button>
-    </div>
-  );
+function downloadCsv(name: string, rows: any[]) {
+  if (!rows.length) {
+    toast.info("Geen data om te exporteren");
+    return;
+  }
+  const keys = Array.from(rows.reduce((set, r) => {
+    Object.keys(r || {}).forEach((k) => set.add(k));
+    return set;
+  }, new Set<string>())) as string[];
+  const escape = (v: any) => {
+    if (v === null || v === undefined) return "";
+    const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+    return `"${s.replace(/"/g, '""')}"`;
+  };
+  const csv = [keys.join(","), ...rows.map((r) => keys.map((k) => escape(r[k])).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 }
