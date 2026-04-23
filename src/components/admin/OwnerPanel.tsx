@@ -39,6 +39,14 @@ const MC_SERVERS = [
   { key: "events", name: "Events", host: "node-07.bluxnetwork.eu", port: 25000 },
 ] as const;
 
+const SUPPORTED_ACTIONS = new Set([
+  "delete-rejected-applications",
+  "close-all-positions",
+  "open-all-positions",
+  "export-activity",
+  "export-users",
+]);
+
 type ActionDef = {
   id: string;
   label: string;
@@ -169,7 +177,7 @@ export function OwnerPanel() {
   const availableActions = useMemo(() => ACTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
-      if (item.id === "clear-old-activity") return !!user?.permissions?.activity_view || user?.role === "eigenaar";
+      if (!SUPPORTED_ACTIONS.has(item.id)) return false;
       if (item.id === "delete-rejected-applications") return !!user?.permissions?.applications_manage || user?.role === "eigenaar";
       if (item.id === "close-all-positions" || item.id === "open-all-positions") return !!user?.permissions?.positions_manage || user?.role === "eigenaar";
       if (item.id === "export-activity") return !!user?.permissions?.activity_view || user?.role === "eigenaar";
