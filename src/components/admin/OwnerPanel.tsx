@@ -365,7 +365,7 @@ export function OwnerPanel() {
               </span>
             )}
           </div>
-          <Button size="sm" variant="ghost" onClick={loadMc} disabled={mcLoading} className="h-7 gap-1 text-xs">
+          <Button size="sm" variant="ghost" onClick={() => loadMc(true)} disabled={mcLoading} className="h-7 gap-1 text-xs">
             <RefreshCw className={cn("w-3 h-3", mcLoading && "animate-spin")} /> Verversen
           </Button>
         </div>
