@@ -669,7 +669,7 @@ function DatabaseWidget() {
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-semibold text-foreground">MySQL Database</h2>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 font-semibold">
             Actief
           </span>
         </div>
