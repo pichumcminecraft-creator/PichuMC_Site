@@ -362,7 +362,7 @@ function downloadCsv(name: string, rows: any[]) {
   const keys = Array.from(rows.reduce((set, r) => {
     Object.keys(r || {}).forEach((k) => set.add(k));
     return set;
-  }, new Set<string>()));
+  }, new Set<string>())) as string[];
   const escape = (v: any) => {
     if (v === null || v === undefined) return "";
     const s = typeof v === "object" ? JSON.stringify(v) : String(v);
