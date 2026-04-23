@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
       try {
         const { data: globalSettings } = await supabase.from("discord_settings").select("bot_token").limit(1).single();
         const { data: channel } = await supabase.from("discord_channels").select("*").eq("position_id", position_id).single();
+        const { data: positionData } = await supabase.from("positions").select("questions").eq("id", position_id).single();
         const botToken = globalSettings?.bot_token;
         if (botToken && channel?.enabled && channel?.channel_id) {
           const colorInt = parseInt((channel.embed_color || "#FFD700").replace("#", ""), 16);
@@ -115,8 +116,23 @@ Deno.serve(async (req) => {
           ];
           if (age) fields.push({ name: "Leeftijd", value: String(age), inline: true });
           if (discord_username) fields.push({ name: "Discord", value: discord_username, inline: true });
+
+          // Build a map of question key -> label from the position's configured questions
+          const questionLabels: Record<string, string> = {
+            motivation: "Motivatie",
+            experience: "Ervaring",
+            availability: "Beschikbaarheid",
+          };
+          const posQuestions = Array.isArray(positionData?.questions) ? positionData.questions : [];
+          posQuestions.forEach((q: any) => {
+            if (q?.key && q?.label) questionLabels[q.key] = q.label;
+          });
+
           Object.entries(answers || {}).forEach(([k, v]) => {
-            if (v) fields.push({ name: k.charAt(0).toUpperCase() + k.slice(1), value: String(v).slice(0, 1024), inline: false });
+            if (v) {
+              const label = questionLabels[k] || k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
+              fields.push({ name: label, value: String(v).slice(0, 1024), inline: false });
+            }
           });
 
           const pingContent = (channel.ping_roles || []).map((r: string) => `<@&${r}>`).join(" ");
