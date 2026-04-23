@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminFetch, getAdminUser } from "@/lib/api";
 import {
   Users2, Crown, CalendarOff, Megaphone, Activity, Globe,
-  Server, Sparkles, Search, Trophy, Medal, Zap, FileText,
+  Server, Sparkles, Search, Medal, Zap, FileText,
   Sun, Moon, Coffee, PartyPopper, Flame, Gamepad2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
