@@ -782,7 +782,21 @@ Deno.serve(async (req) => {
       const { count: adminCount } = await supabase.from("admin_users").select("*", { count: "exact", head: true });
       const { count: totalRoles } = await supabase.from("roles").select("*", { count: "exact", head: true });
       const { count: activeAbsences } = await supabase.from("absences").select("*", { count: "exact", head: true }).eq("status", "goedgekeurd");
-      return jsonResponse({ totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences });
+
+      // Echte actieve staff: laatst online < 15 minuten geleden
+      const activeCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data: activeStaff } = await supabase
+        .from("admin_users")
+        .select("id, username, last_online, role, roles(name, color)")
+        .gte("last_online", activeCutoff)
+        .order("last_online", { ascending: false })
+        .limit(10);
+
+      return jsonResponse({
+        totalApps, pending, accepted, rejected, openPositions, adminCount, totalRoles, activeAbsences,
+        activeStaff: activeStaff || [],
+        activeStaffCount: (activeStaff || []).length,
+      });
     }
 
     // === OWNER PANEL ACTIONS (password re-confirmation required) ===
