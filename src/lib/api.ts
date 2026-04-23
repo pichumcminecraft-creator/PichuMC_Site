@@ -58,6 +58,7 @@ export async function submitApplication(application: {
   age?: number;
   discord_username?: string;
   answers?: Record<string, string>;
+  question_labels?: Record<string, string>;
 }) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
