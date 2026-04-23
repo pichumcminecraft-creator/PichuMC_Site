@@ -196,7 +196,7 @@ export function PositionsTab({ onRefresh }: { onRefresh: () => void }) {
         </div>
       )}
 
-      {positions.map((pos) => {
+      {positions.map((pos, index) => {
         const Icon = iconOptions.find((o) => o.value === pos.icon)?.Icon || Shield;
         const isOpen = expanded === pos.id;
         const form = editForms[pos.id];
