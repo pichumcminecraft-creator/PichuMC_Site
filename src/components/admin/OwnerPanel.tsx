@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity,
   Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2,
-  RefreshCw, Globe, Users
+  RefreshCw, Globe, Users, Eye, EyeOff, Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
