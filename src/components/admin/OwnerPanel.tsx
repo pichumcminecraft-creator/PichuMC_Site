@@ -197,7 +197,7 @@ export function OwnerPanel() {
     }),
   })).filter((section) => section.items.length > 0), [user]);
 
-  const loadMc = async () => {
+  const loadMc = async (manual = false) => {
     setMcLoading(true);
     try {
       const results = await Promise.all(
@@ -220,6 +220,7 @@ export function OwnerPanel() {
       );
       setMcServers(results);
       setMcCheckedAt(new Date().toISOString());
+      if (manual) toast.success("Serverstatus bijgewerkt");
     } catch (e: any) {
       toast.error(e?.message || "Kon serverstatus niet laden");
     } finally {
@@ -230,7 +231,7 @@ export function OwnerPanel() {
   useEffect(() => {
     adminFetch("stats").then(setStats).catch(() => {});
     loadMc();
-    const t = setInterval(loadMc, 60_000);
+    const t = setInterval(() => loadMc(false), 60_000);
     return () => clearInterval(t);
   }, []);
 
