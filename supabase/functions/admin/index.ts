@@ -831,9 +831,14 @@ Deno.serve(async (req) => {
 
     // === OWNER PANEL ACTIONS (password re-confirmation required) ===
     if (action === "owner-action" && req.method === "POST") {
+      console.log("[owner-action] hit, user:", session.username, "isOwner:", isOwner);
       if (!hasPerm("owner_panel")) return jsonResponse({ error: "Geen toegang tot Owner Panel" }, 403);
-      const { action: subAction, password } = await req.json();
+      const body = await req.json();
+      const subAction: string = body.subAction || body.action;
+      const password: string = body.password;
+      if (!subAction) return jsonResponse({ error: "Geen sub-actie opgegeven" }, 400);
       if (!password) return jsonResponse({ error: "Wachtwoord vereist" }, 400);
+      console.log("[owner-action] subAction:", subAction);
 
       // Re-verify password
       const { data: me } = await supabase

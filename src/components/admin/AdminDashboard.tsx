@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminFetch, getAdminUser } from "@/lib/api";
 import {
   Users2, Crown, CalendarOff, Megaphone, Activity, Globe,
-  Server, Sparkles, Search, Trophy, Medal, Zap, FileText,
+  Server, Sparkles, Search, Medal, Zap, FileText,
   Sun, Moon, Coffee, PartyPopper, Flame, Gamepad2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,8 @@ export function AdminDashboard() {
 
   useEffect(() => {
     adminFetch("stats").then(setStats).catch(() => {});
-    adminFetch("activity-log").then((d) => setActivity((d || []).slice(0, 8))).catch(() => {});
+    // Veel activity ophalen voor leaderboard accuracy
+    adminFetch("activity-log").then((d) => setActivity((d || []).slice(0, 200))).catch(() => {});
     adminFetch("announcements")
       .then((d) => setAnnouncements((d || []).map((a: any) => parseAnnouncement(a))))
       .catch(() => {});
@@ -56,15 +57,29 @@ export function AdminDashboard() {
   const activeStaff: any[] = stats?.activeStaff || [];
   const activeCount: number = stats?.activeStaffCount ?? 0;
 
-  // Leaderboard uit activity
-  const leaderboard = Object.entries(
-    activity.reduce((acc: Record<string, number>, a) => {
-      acc[a.username] = (acc[a.username] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .sort((a, b) => (b[1] as number) - (a[1] as number))
-    .slice(0, 4);
+  // Top online: combineer activity counts (vandaag) met online status
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayMs = todayStart.getTime();
+  const counts: Record<string, number> = {};
+  activity.forEach((a) => {
+    if (new Date(a.created_at).getTime() >= todayMs) {
+      counts[a.username] = (counts[a.username] || 0) + 1;
+    }
+  });
+  // Voeg ook online staff toe (zelfs zonder vandaag-activity → 1 baseline)
+  const activeStaffNames = new Set(activeStaff.map((s) => s.username));
+  activeStaff.forEach((s) => {
+    if (!(s.username in counts)) counts[s.username] = 0;
+  });
+  const leaderboard = Object.entries(counts)
+    .sort((a, b) => {
+      const aOnline = activeStaffNames.has(a[0]) ? 1 : 0;
+      const bOnline = activeStaffNames.has(b[0]) ? 1 : 0;
+      if (aOnline !== bOnline) return bOnline - aOnline;
+      return (b[1] as number) - (a[1] as number);
+    })
+    .slice(0, 8);
+  const maxCount = Math.max(1, ...leaderboard.map((e) => e[1] as number));
 
   const bars = [40, 65, 50, 80, 35, 90, 70];
   const hour = now.getHours();
@@ -262,33 +277,57 @@ export function AdminDashboard() {
           <FunFactTile fact={funFact} />
         )}
 
-        {/* Leaderboard (spans 2) */}
+        {/* Top online — bar chart per persoon */}
         <div className="md:col-span-2 rounded-3xl bg-card border border-border p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-primary" /> Top bijdragers
+              <Activity className="w-4 h-4 text-primary" /> Top online
             </h3>
-            <span className="text-[10px] text-muted-foreground">Recent</span>
+            <span className="text-[10px] text-muted-foreground">Vandaag · acties</span>
           </div>
           {leaderboard.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nog geen activiteit</p>
+            <p className="text-sm text-muted-foreground">Nog geen staff actief vandaag</p>
           ) : (
-            <div className="space-y-3">
-              {leaderboard.map(([name, count], i) => (
-                <div key={name as string} className="flex items-center gap-3">
-                  <div className={cn(
-                    "size-8 rounded-full flex items-center justify-center text-xs font-bold",
-                    i === 0 ? "bg-primary/25 text-primary" :
-                    i === 1 ? "bg-primary/15 text-primary" :
-                    i === 2 ? "bg-primary/10 text-primary/80" :
-                    "bg-secondary text-muted-foreground"
-                  )}>
-                    {i < 3 ? <Medal className="w-4 h-4" /> : i + 1}
+            <div className="space-y-2.5">
+              {leaderboard.map(([name, count], i) => {
+                const isOnline = activeStaffNames.has(name as string);
+                const pct = ((count as number) / maxCount) * 100;
+                return (
+                  <div key={name as string} className="space-y-1">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={cn(
+                        "size-1.5 rounded-full shrink-0",
+                        isOnline ? "bg-primary animate-pulse" : "bg-muted-foreground/30"
+                      )} />
+                      <span className="w-4 text-[10px] text-muted-foreground tabular-nums">{i + 1}</span>
+                      <span className="flex-1 text-foreground font-medium truncate">
+                        {name as string}
+                      </span>
+                      {i === 0 && <Medal className="w-3 h-3 text-primary" />}
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded-full border",
+                        isOnline
+                          ? "border-primary/30 bg-primary/10 text-primary"
+                          : "border-border bg-secondary text-muted-foreground"
+                      )}>
+                        {isOnline ? "online" : "offline"}
+                      </span>
+                      <span className="tabular-nums text-xs text-foreground font-semibold w-8 text-right">
+                        {count as number}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-secondary overflow-hidden ml-3">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          isOnline ? "bg-gradient-to-r from-primary/70 to-primary" : "bg-muted-foreground/30"
+                        )}
+                        style={{ width: `${Math.max(pct, count === 0 ? 2 : 6)}%` }}
+                      />
+                    </div>
                   </div>
-                  <span className="flex-1 text-sm text-foreground font-medium">{name as string}</span>
-                  <span className="tabular-nums text-xs text-primary font-semibold">{count as number} acties</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
