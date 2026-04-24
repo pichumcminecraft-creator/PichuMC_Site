@@ -404,6 +404,9 @@ export function OwnerPanel() {
         )}
       </div>
 
+      {/* Maintenance mode */}
+      {(user?.role === "eigenaar" || user?.permissions?.content_manage) && <MaintenanceWidget />}
+
       {/* MySQL Database — alleen zichtbaar voor LikeAPichu */}
       {user?.username === "LikeAPichu" && <DatabaseWidget />}
 
