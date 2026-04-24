@@ -296,7 +296,8 @@ Deno.serve(async (req) => {
     // asking them to open a ticket regarding their application.
     if (action === "dm-ticket-invite" && req.method === "POST") {
       if (!hasPerm("applications_manage")) return jsonResponse({ error: "Geen toegang" }, 403);
-      const { application_id } = await req.json();
+      const body = await req.json();
+      const { application_id, custom_title, custom_description, custom_color, custom_content } = body;
       if (!application_id) return jsonResponse({ error: "application_id ontbreekt" }, 400);
 
       const { data: app } = await supabase
@@ -310,7 +311,8 @@ Deno.serve(async (req) => {
       const { data: dSettings } = await supabase.from("discord_settings").select("bot_token, guild_id").limit(1).single();
       const botToken = dSettings?.bot_token;
       const guildId = dSettings?.guild_id;
-      if (!botToken || !guildId) return jsonResponse({ error: "Discord bot/guild niet geconfigureerd" }, 400);
+      if (!botToken) return jsonResponse({ error: "Discord bot token niet geconfigureerd (Owner Panel → Discord)" }, 400);
+      if (!guildId) return jsonResponse({ error: "Discord guild_id niet geconfigureerd (Owner Panel → Discord)" }, 400);
 
       // Search the guild for the member by username
       const cleanName = String(app.discord_username).replace(/^@/, "").split("#")[0].toLowerCase();
@@ -319,7 +321,7 @@ Deno.serve(async (req) => {
       });
       if (!searchRes.ok) {
         const t = await searchRes.text();
-        return jsonResponse({ error: `Discord zoek-fout: ${t}` }, 400);
+        return jsonResponse({ error: `Discord zoek-fout (heeft de bot 'Server Members Intent' aan?): ${t}` }, 400);
       }
       const members: any[] = await searchRes.json();
       const match = members.find((m) =>
@@ -341,17 +343,29 @@ Deno.serve(async (req) => {
       }
       const dm = await dmRes.json();
 
-      const colorInt = parseInt((app.positions?.color || "#FFD700").replace("#", ""), 16);
+      // Allow simple template variables in custom text
+      const fillVars = (s: string) => s
+        .replace(/\{minecraft\}/gi, app.minecraft_username || "")
+        .replace(/\{discord\}/gi, app.discord_username || "")
+        .replace(/\{positie\}/gi, app.positions?.name || "")
+        .replace(/\{position\}/gi, app.positions?.name || "")
+        .replace(/\{user\}/gi, `<@${match.user.id}>`);
+
+      const defaultDesc = `Bedankt voor je sollicitatie voor **${app.positions?.name || "een positie"}**!\n\nOm verder te gaan vragen we je een **ticket** te openen in onze Discord server. Een staff lid neemt daar zo snel mogelijk contact met je op.\n\n**Stappen:**\n1. Ga naar het \`#tickets\` kanaal in de PichuMC Discord\n2. Klik op de knop "Maak een ticket"\n3. Vermeld dat het over je **${app.positions?.name || "sollicitatie"}** gaat`;
+
+      const colorHex = (custom_color || app.positions?.color || "#FFD700").toString();
+      const colorInt = parseInt(colorHex.replace("#", ""), 16);
+
       const sendRes = await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
         method: "POST",
         headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: `Hey <@${match.user.id}> 👋`,
+          content: custom_content ? fillVars(custom_content) : `Hey <@${match.user.id}> 👋`,
           embeds: [{
             author: { name: "PichuMC Staff Team" },
-            title: "🎫 Maak een ticket aan",
-            description: `Bedankt voor je sollicitatie voor **${app.positions?.name || "een positie"}**!\n\nOm verder te gaan vragen we je een **ticket** te openen in onze Discord server. Een staff lid neemt daar zo snel mogelijk contact met je op.\n\n**Stappen:**\n1. Ga naar het \`#tickets\` kanaal in de PichuMC Discord\n2. Klik op de knop "Maak een ticket"\n3. Vermeld dat het over je **${app.positions?.name || "sollicitatie"}** gaat`,
-            color: colorInt,
+            title: custom_title ? fillVars(custom_title) : "🎫 Maak een ticket aan",
+            description: custom_description ? fillVars(custom_description) : defaultDesc,
+            color: isNaN(colorInt) ? 0xFFD700 : colorInt,
             fields: [
               { name: "Minecraft", value: app.minecraft_username, inline: true },
               { name: "Positie", value: app.positions?.name || "—", inline: true },
