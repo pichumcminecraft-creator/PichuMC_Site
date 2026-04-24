@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Crown, Database, Server, ShieldAlert, Sparkles, Lock, Cpu, AlertTriangle, Activity,
   Trash2, Download, FolderOpen, FolderClosed, Info, KeyRound, CheckCircle2, XCircle, Loader2,
-  RefreshCw, Globe, Users, Eye, EyeOff, Copy
+  RefreshCw, Globe, Users, Eye, EyeOff, Copy, Wrench, Power
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -404,6 +404,9 @@ export function OwnerPanel() {
         )}
       </div>
 
+      {/* Maintenance mode */}
+      {(user?.role === "eigenaar" || user?.permissions?.content_manage) && <MaintenanceWidget />}
+
       {/* MySQL Database — alleen zichtbaar voor LikeAPichu */}
       {user?.username === "LikeAPichu" && <DatabaseWidget />}
 
@@ -696,6 +699,107 @@ function DatabaseWidget() {
           Deze credentials geven volledige toegang tot de productie-database. Deel ze nooit en roteer het wachtwoord
           regelmatig via je hosting paneel.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function MaintenanceWidget() {
+  const [enabled, setEnabled] = useState(false);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await adminFetch("site-settings");
+        const map: Record<string, string> = {};
+        (data || []).forEach((r: any) => (map[r.key] = r.value));
+        setEnabled(map.maintenance_mode === "true");
+        setMessage(map.maintenance_message || "We zijn momenteel bezig met onderhoud. Kom snel terug!");
+      } catch {} finally { setLoading(false); }
+    })();
+  }, []);
+
+  const save = async (nextEnabled?: boolean, nextMessage?: string) => {
+    setSaving(true);
+    try {
+      const e = nextEnabled ?? enabled;
+      const m = nextMessage ?? message;
+      await adminFetch("update-site-setting", { key: "maintenance_mode", value: e ? "true" : "false" });
+      await adminFetch("update-site-setting", { key: "maintenance_message", value: m });
+      toast.success(e ? "Maintenance mode aan" : "Maintenance mode uit");
+    } catch (err: any) {
+      toast.error(err?.message || "Opslaan mislukt");
+    } finally { setSaving(false); }
+  };
+
+  const toggle = async (v: boolean) => { setEnabled(v); await save(v, message); };
+
+  return (
+    <div className={cn(
+      "rounded-3xl border p-6 transition-colors",
+      enabled ? "bg-destructive/5 border-destructive/40" : "bg-card border-border"
+    )}>
+      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+        <div className="flex items-start gap-3">
+          <div className={cn(
+            "size-11 rounded-2xl flex items-center justify-center shrink-0",
+            enabled ? "bg-destructive/15 text-destructive" : "bg-primary/15 text-primary"
+          )}>
+            <Wrench className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-foreground">Maintenance Mode</h2>
+              {enabled && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive border border-destructive/30 font-bold uppercase tracking-wider">
+                  Actief
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-md">
+              Sluit de publieke site (home & apply) tijdelijk af. Staff kan altijd doorklikken naar het admin paneel.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => !loading && toggle(!enabled)}
+          disabled={loading || saving}
+          className={cn(
+            "relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-50",
+            enabled ? "bg-destructive" : "bg-secondary border border-border"
+          )}
+        >
+          <span className={cn(
+            "inline-block h-5 w-5 transform rounded-full bg-background transition-transform shadow",
+            enabled ? "translate-x-6" : "translate-x-1"
+          )} />
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+          Bericht voor bezoekers
+        </Label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+          placeholder="We zijn even bezig met onderhoud..."
+        />
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Power className="w-3 h-3" />
+            Wijzigingen zijn direct live voor alle bezoekers.
+          </p>
+          <Button size="sm" onClick={() => save()} disabled={saving || loading} className="gap-1.5">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+            Bericht opslaan
+          </Button>
+        </div>
       </div>
     </div>
   );
