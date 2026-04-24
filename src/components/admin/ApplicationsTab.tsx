@@ -51,6 +51,20 @@ export function ApplicationsTab() {
     }
   };
 
+  const sendTicketInvite = async (id: string, discordUsername?: string) => {
+    if (!discordUsername) {
+      toast.error("Geen Discord gebruikersnaam bij deze sollicitatie");
+      return;
+    }
+    const t = toast.loading(`DM sturen naar ${discordUsername}...`);
+    try {
+      await adminFetch("dm-ticket-invite", { application_id: id });
+      toast.success(`Ticket-uitnodiging verstuurd naar ${discordUsername}`, { id: t });
+    } catch (e: any) {
+      toast.error(e.message || "Versturen mislukt", { id: t });
+    }
+  };
+
   if (loading) return <p className="text-muted-foreground">Laden...</p>;
   if (!apps.length) return <p className="text-muted-foreground">Geen sollicitaties gevonden.</p>;
 
