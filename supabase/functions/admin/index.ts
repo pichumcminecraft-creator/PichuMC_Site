@@ -141,16 +141,21 @@ Deno.serve(async (req) => {
 
           const pingContent = (channel.ping_roles || []).map((r: string) => `<@&${r}>`).join(" ");
 
+          const prettify = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          const prettyFields = fields.map((f: any) => ({ ...f, name: prettify(String(f.name)) }));
+
           const dRes = await fetch(`https://discord.com/api/v10/channels/${channel.channel_id}/messages`, {
             method: "POST",
             headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               content: pingContent || undefined,
               embeds: [{
-                title: `📋 Nieuwe Sollicitatie: ${app?.positions?.name || ""}`,
+                author: { name: `PichuMC • Sollicitatie` },
+                title: `✨ Nieuwe sollicitatie — ${app?.positions?.name || ""}`,
+                description: `Er is een nieuwe sollicitatie binnengekomen van **${minecraft_username}**.\nBekijk de antwoorden hieronder en reageer in het staff panel.`,
                 color: colorInt,
-                fields,
-                footer: { text: "PichuMC Sollicitaties" },
+                fields: prettyFields,
+                footer: { text: `PichuMC Sollicitaties • ID ${app?.id?.slice(0, 8) || ""}` },
                 timestamp: new Date().toISOString(),
               }],
               allowed_mentions: { parse: ["roles"] },
@@ -284,6 +289,85 @@ Deno.serve(async (req) => {
       await supabase.from("applications").delete().eq("id", id);
       await logActivity(session.userId, sessionUsername, "delete-application", `Sollicitatie van ${app?.minecraft_username} verwijderd`);
       return jsonResponse({ success: true });
+    }
+
+    // === DM TICKET INVITE ===
+    // Looks up a Discord user by username in the configured guild and sends them a DM
+    // asking them to open a ticket regarding their application.
+    if (action === "dm-ticket-invite" && req.method === "POST") {
+      if (!hasPerm("applications_manage")) return jsonResponse({ error: "Geen toegang" }, 403);
+      const { application_id } = await req.json();
+      if (!application_id) return jsonResponse({ error: "application_id ontbreekt" }, 400);
+
+      const { data: app } = await supabase
+        .from("applications")
+        .select("*, positions(name, color)")
+        .eq("id", application_id)
+        .single();
+      if (!app) return jsonResponse({ error: "Sollicitatie niet gevonden" }, 404);
+      if (!app.discord_username) return jsonResponse({ error: "Geen Discord gebruikersnaam opgegeven" }, 400);
+
+      const { data: dSettings } = await supabase.from("discord_settings").select("bot_token, guild_id").limit(1).single();
+      const botToken = dSettings?.bot_token;
+      const guildId = dSettings?.guild_id;
+      if (!botToken || !guildId) return jsonResponse({ error: "Discord bot/guild niet geconfigureerd" }, 400);
+
+      // Search the guild for the member by username
+      const cleanName = String(app.discord_username).replace(/^@/, "").split("#")[0].toLowerCase();
+      const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanName)}&limit=10`, {
+        headers: { "Authorization": `Bot ${botToken}` },
+      });
+      if (!searchRes.ok) {
+        const t = await searchRes.text();
+        return jsonResponse({ error: `Discord zoek-fout: ${t}` }, 400);
+      }
+      const members: any[] = await searchRes.json();
+      const match = members.find((m) =>
+        (m.user?.username || "").toLowerCase() === cleanName ||
+        (m.user?.global_name || "").toLowerCase() === cleanName ||
+        (m.nick || "").toLowerCase() === cleanName
+      ) || members[0];
+      if (!match?.user?.id) return jsonResponse({ error: `Gebruiker '${app.discord_username}' niet gevonden in de Discord server` }, 404);
+
+      // Open DM channel
+      const dmRes = await fetch(`https://discord.com/api/v10/users/@me/channels`, {
+        method: "POST",
+        headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ recipient_id: match.user.id }),
+      });
+      if (!dmRes.ok) {
+        const t = await dmRes.text();
+        return jsonResponse({ error: `DM kanaal openen mislukt: ${t}` }, 400);
+      }
+      const dm = await dmRes.json();
+
+      const colorInt = parseInt((app.positions?.color || "#FFD700").replace("#", ""), 16);
+      const sendRes = await fetch(`https://discord.com/api/v10/channels/${dm.id}/messages`, {
+        method: "POST",
+        headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: `Hey <@${match.user.id}> 👋`,
+          embeds: [{
+            author: { name: "PichuMC Staff Team" },
+            title: "🎫 Maak een ticket aan",
+            description: `Bedankt voor je sollicitatie voor **${app.positions?.name || "een positie"}**!\n\nOm verder te gaan vragen we je een **ticket** te openen in onze Discord server. Een staff lid neemt daar zo snel mogelijk contact met je op.\n\n**Stappen:**\n1. Ga naar het \`#tickets\` kanaal in de PichuMC Discord\n2. Klik op de knop "Maak een ticket"\n3. Vermeld dat het over je **${app.positions?.name || "sollicitatie"}** gaat`,
+            color: colorInt,
+            fields: [
+              { name: "Minecraft", value: app.minecraft_username, inline: true },
+              { name: "Positie", value: app.positions?.name || "—", inline: true },
+            ],
+            footer: { text: "PichuMC • Sollicitaties" },
+            timestamp: new Date().toISOString(),
+          }],
+        }),
+      });
+      if (!sendRes.ok) {
+        const t = await sendRes.text();
+        return jsonResponse({ error: `DM versturen mislukt (gebruiker DMs uit?): ${t}` }, 400);
+      }
+
+      await logActivity(session.userId, sessionUsername, "dm-ticket-invite", `Ticket-DM gestuurd naar ${app.discord_username} voor sollicitatie van ${app.minecraft_username}`);
+      return jsonResponse({ success: true, discord_user_id: match.user.id });
     }
 
     // === DISCORD SETTINGS ===

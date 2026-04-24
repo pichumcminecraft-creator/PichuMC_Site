@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { adminFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Trash2, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
@@ -51,6 +51,20 @@ export function ApplicationsTab() {
     }
   };
 
+  const sendTicketInvite = async (id: string, discordUsername?: string) => {
+    if (!discordUsername) {
+      toast.error("Geen Discord gebruikersnaam bij deze sollicitatie");
+      return;
+    }
+    const t = toast.loading(`DM sturen naar ${discordUsername}...`);
+    try {
+      await adminFetch("dm-ticket-invite", { application_id: id });
+      toast.success(`Ticket-uitnodiging verstuurd naar ${discordUsername}`, { id: t });
+    } catch (e: any) {
+      toast.error(e.message || "Versturen mislukt", { id: t });
+    }
+  };
+
   if (loading) return <p className="text-muted-foreground">Laden...</p>;
   if (!apps.length) return <p className="text-muted-foreground">Geen sollicitaties gevonden.</p>;
 
@@ -88,7 +102,7 @@ export function ApplicationsTab() {
             </div>
           )}
 
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap">
             {app.status === "in_afwachting" && (
               <>
                 <Button size="sm" className="bg-[#10B981] hover:bg-[#059669] text-foreground gap-1" onClick={() => updateStatus(app.id, "geaccepteerd")}>
@@ -98,6 +112,11 @@ export function ApplicationsTab() {
                   <XCircle className="w-4 h-4" /> Afwijzen
                 </Button>
               </>
+            )}
+            {app.discord_username && (
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => sendTicketInvite(app.id, app.discord_username)}>
+                <Ticket className="w-4 h-4" /> Mail naar DC ({app.discord_username})
+              </Button>
             )}
             <Button size="sm" variant="outline" className="gap-1 text-destructive ml-auto" onClick={() => deleteApp(app.id)}>
               <Trash2 className="w-4 h-4" /> Verwijderen
