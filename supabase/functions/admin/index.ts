@@ -141,16 +141,21 @@ Deno.serve(async (req) => {
 
           const pingContent = (channel.ping_roles || []).map((r: string) => `<@&${r}>`).join(" ");
 
+          const prettify = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          const prettyFields = fields.map((f: any) => ({ ...f, name: prettify(String(f.name)) }));
+
           const dRes = await fetch(`https://discord.com/api/v10/channels/${channel.channel_id}/messages`, {
             method: "POST",
             headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               content: pingContent || undefined,
               embeds: [{
-                title: `📋 Nieuwe Sollicitatie: ${app?.positions?.name || ""}`,
+                author: { name: `PichuMC • Sollicitatie` },
+                title: `✨ Nieuwe sollicitatie — ${app?.positions?.name || ""}`,
+                description: `Er is een nieuwe sollicitatie binnengekomen van **${minecraft_username}**.\nBekijk de antwoorden hieronder en reageer in het staff panel.`,
                 color: colorInt,
-                fields,
-                footer: { text: "PichuMC Sollicitaties" },
+                fields: prettyFields,
+                footer: { text: `PichuMC Sollicitaties • ID ${app?.id?.slice(0, 8) || ""}` },
                 timestamp: new Date().toISOString(),
               }],
               allowed_mentions: { parse: ["roles"] },
