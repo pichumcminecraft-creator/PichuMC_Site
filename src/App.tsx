@@ -9,6 +9,7 @@ import AdminLogin from "./pages/AdminLogin.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { MaintenanceGate } from "./components/MaintenanceGate";
 
 const queryClient = new QueryClient();
 
@@ -20,8 +21,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/apply" element={<Apply />} />
+            <Route path="/" element={<MaintenanceGate><Home /></MaintenanceGate>} />
+            <Route path="/apply" element={<MaintenanceGate><Apply /></MaintenanceGate>} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="*" element={<NotFound />} />
