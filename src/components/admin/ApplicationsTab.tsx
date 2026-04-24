@@ -102,7 +102,7 @@ export function ApplicationsTab() {
             </div>
           )}
 
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap">
             {app.status === "in_afwachting" && (
               <>
                 <Button size="sm" className="bg-[#10B981] hover:bg-[#059669] text-foreground gap-1" onClick={() => updateStatus(app.id, "geaccepteerd")}>
@@ -112,6 +112,11 @@ export function ApplicationsTab() {
                   <XCircle className="w-4 h-4" /> Afwijzen
                 </Button>
               </>
+            )}
+            {app.discord_username && (
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => sendTicketInvite(app.id, app.discord_username)}>
+                <Ticket className="w-4 h-4" /> Mail naar DC ({app.discord_username})
+              </Button>
             )}
             <Button size="sm" variant="outline" className="gap-1 text-destructive ml-auto" onClick={() => deleteApp(app.id)}>
               <Trash2 className="w-4 h-4" /> Verwijderen
