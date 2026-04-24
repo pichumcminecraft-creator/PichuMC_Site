@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { adminFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Trash2, Ticket } from "lucide-react";
 import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
