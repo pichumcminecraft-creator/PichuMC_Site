@@ -58,7 +58,7 @@ function buildTaskEmbed(title: string, description: string | null, status: strin
   };
 }
 
-// Edge function v3 — adds dm-ticket-invite, discord-broadcast, bulk-applications, server-control
+// Edge function v4 — force redeploy (dm-ticket-invite, discord-broadcast, bulk-applications)
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
