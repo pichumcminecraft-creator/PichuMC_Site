@@ -180,27 +180,28 @@ export function ApplicationsTab() {
       <div className="space-y-4">
         {apps.map((app) => (
           <div key={app.id} className="card-glow rounded-xl bg-card p-5">
-            <div className="flex items-start justify-between mb-3 gap-3">
-              <div className="flex items-start gap-3 flex-1">
-                <Checkbox
-                  checked={selected.has(app.id)}
-                  onCheckedChange={() => toggleOne(app.id)}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="font-bold text-foreground text-lg">{app.minecraft_username}</p>
-                  <Badge style={{ backgroundColor: statusColors[app.status], color: "#000" }}>
-                    {statusLabels[app.status]}
-                  </Badge>
+            <div className="flex items-start gap-3 mb-3">
+              <Checkbox
+                checked={selected.has(app.id)}
+                onCheckedChange={() => toggleOne(app.id)}
+                className="mt-1"
+              />
+              <div className="flex-1 flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-bold text-foreground text-lg">{app.minecraft_username}</p>
+                    <Badge style={{ backgroundColor: statusColors[app.status], color: "#000" }}>
+                      {statusLabels[app.status]}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Positie: <span style={{ color: app.positions?.color }}>{app.positions?.name}</span>
+                    {app.age && ` • ${app.age} jaar`}
+                    {app.discord_username && ` • Discord: ${app.discord_username}`}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Positie: <span style={{ color: app.positions?.color }}>{app.positions?.name}</span>
-                  {app.age && ` • ${app.age} jaar`}
-                  {app.discord_username && ` • Discord: ${app.discord_username}`}
-                </p>
+                <p className="text-xs text-muted-foreground whitespace-nowrap">{new Date(app.created_at).toLocaleDateString("nl-NL")}</p>
               </div>
-              <p className="text-xs text-muted-foreground">{new Date(app.created_at).toLocaleDateString("nl-NL")}</p>
             </div>
 
             {app.motivation && (
