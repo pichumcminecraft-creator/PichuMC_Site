@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { adminFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Trash2, Ticket, Bold, Italic, Underline, Code, Link2 } from "lucide-react";
+import { CheckCircle, XCircle, Trash2, Ticket, Bold, Italic, Underline, Code, Link2, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const statusColors: Record<string, string> = {
   in_afwachting: "#F59E0B",
@@ -35,6 +36,7 @@ const PRESET_COLORS = [
 export function ApplicationsTab() {
   const [apps, setApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dmTarget, setDmTarget] = useState<any>(null);
   const [dmTitle, setDmTitle] = useState("🎫 Maak een ticket aan");
   const [dmContent, setDmContent] = useState("Hey {user} 👋");
@@ -43,6 +45,30 @@ export function ApplicationsTab() {
   );
   const [dmColor, setDmColor] = useState("#FFD700");
   const [sending, setSending] = useState(false);
+
+  const allSelected = apps.length > 0 && selected.size === apps.length;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(apps.map((a) => a.id)));
+  const toggleOne = (id: string) => {
+    const n = new Set(selected);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setSelected(n);
+  };
+
+  const bulkAction = async (op: "delete" | "status", status?: string) => {
+    if (selected.size === 0) return;
+    const ids = Array.from(selected);
+    const label = op === "delete" ? "verwijderen" : status === "geaccepteerd" ? "accepteren" : "afwijzen";
+    if (!confirm(`Weet je zeker dat je ${ids.length} sollicitatie(s) wilt ${label}?`)) return;
+    const t = toast.loading(`${ids.length} sollicitaties ${label}...`);
+    try {
+      await adminFetch("bulk-applications", { ids, op, status });
+      toast.success(`${ids.length} sollicitaties bijgewerkt`, { id: t });
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      toast.error(e.message || "Mislukt", { id: t });
+    }
+  };
 
   useEffect(() => { load(); }, []);
 
