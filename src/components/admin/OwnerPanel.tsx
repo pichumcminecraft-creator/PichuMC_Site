@@ -407,6 +407,9 @@ export function OwnerPanel() {
       {/* Maintenance mode */}
       {(user?.role === "eigenaar" || user?.permissions?.content_manage) && <MaintenanceWidget />}
 
+      {/* Discord Broadcast — voor iedereen met discord_manage */}
+      {(user?.role === "eigenaar" || user?.permissions?.discord_manage) && <BroadcastWidget />}
+
       {/* MySQL Database — alleen zichtbaar voor LikeAPichu */}
       {user?.username === "LikeAPichu" && <DatabaseWidget />}
 
