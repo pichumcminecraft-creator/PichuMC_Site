@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { adminFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Trash2, Ticket, Bold, Italic, Underline, Code, Link2 } from "lucide-react";
+import { CheckCircle, XCircle, Trash2, Ticket, Bold, Italic, Underline, Code, Link2, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const statusColors: Record<string, string> = {
   in_afwachting: "#F59E0B",
@@ -35,6 +36,7 @@ const PRESET_COLORS = [
 export function ApplicationsTab() {
   const [apps, setApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dmTarget, setDmTarget] = useState<any>(null);
   const [dmTitle, setDmTitle] = useState("🎫 Maak een ticket aan");
   const [dmContent, setDmContent] = useState("Hey {user} 👋");
@@ -43,6 +45,30 @@ export function ApplicationsTab() {
   );
   const [dmColor, setDmColor] = useState("#FFD700");
   const [sending, setSending] = useState(false);
+
+  const allSelected = apps.length > 0 && selected.size === apps.length;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(apps.map((a) => a.id)));
+  const toggleOne = (id: string) => {
+    const n = new Set(selected);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setSelected(n);
+  };
+
+  const bulkAction = async (op: "delete" | "status", status?: string) => {
+    if (selected.size === 0) return;
+    const ids = Array.from(selected);
+    const label = op === "delete" ? "verwijderen" : status === "geaccepteerd" ? "accepteren" : "afwijzen";
+    if (!confirm(`Weet je zeker dat je ${ids.length} sollicitatie(s) wilt ${label}?`)) return;
+    const t = toast.loading(`${ids.length} sollicitaties ${label}...`);
+    try {
+      await adminFetch("bulk-applications", { ids, op, status });
+      toast.success(`${ids.length} sollicitaties bijgewerkt`, { id: t });
+      setSelected(new Set());
+      load();
+    } catch (e: any) {
+      toast.error(e.message || "Mislukt", { id: t });
+    }
+  };
 
   useEffect(() => { load(); }, []);
 
@@ -131,24 +157,51 @@ export function ApplicationsTab() {
 
   return (
     <>
+      <div className="flex items-center gap-2 flex-wrap mb-3 p-3 rounded-xl bg-card border border-border">
+        <Button size="sm" variant="ghost" className="gap-1" onClick={toggleAll}>
+          {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+          {allSelected ? "Deselecteer alles" : "Selecteer alles"}
+        </Button>
+        <span className="text-xs text-muted-foreground">{selected.size} geselecteerd</span>
+        {selected.size > 0 && (
+          <div className="flex gap-2 ml-auto flex-wrap">
+            <Button size="sm" className="bg-[#10B981] hover:bg-[#059669] text-foreground gap-1" onClick={() => bulkAction("status", "geaccepteerd")}>
+              <CheckCircle className="w-4 h-4" /> Accepteer ({selected.size})
+            </Button>
+            <Button size="sm" variant="destructive" className="gap-1" onClick={() => bulkAction("status", "afgewezen")}>
+              <XCircle className="w-4 h-4" /> Wijs af ({selected.size})
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => bulkAction("delete")}>
+              <Trash2 className="w-4 h-4" /> Verwijder ({selected.size})
+            </Button>
+          </div>
+        )}
+      </div>
       <div className="space-y-4">
         {apps.map((app) => (
           <div key={app.id} className="card-glow rounded-xl bg-card p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="font-bold text-foreground text-lg">{app.minecraft_username}</p>
-                  <Badge style={{ backgroundColor: statusColors[app.status], color: "#000" }}>
-                    {statusLabels[app.status]}
-                  </Badge>
+            <div className="flex items-start gap-3 mb-3">
+              <Checkbox
+                checked={selected.has(app.id)}
+                onCheckedChange={() => toggleOne(app.id)}
+                className="mt-1"
+              />
+              <div className="flex-1 flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-bold text-foreground text-lg">{app.minecraft_username}</p>
+                    <Badge style={{ backgroundColor: statusColors[app.status], color: "#000" }}>
+                      {statusLabels[app.status]}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Positie: <span style={{ color: app.positions?.color }}>{app.positions?.name}</span>
+                    {app.age && ` • ${app.age} jaar`}
+                    {app.discord_username && ` • Discord: ${app.discord_username}`}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Positie: <span style={{ color: app.positions?.color }}>{app.positions?.name}</span>
-                  {app.age && ` • ${app.age} jaar`}
-                  {app.discord_username && ` • Discord: ${app.discord_username}`}
-                </p>
+                <p className="text-xs text-muted-foreground whitespace-nowrap">{new Date(app.created_at).toLocaleDateString("nl-NL")}</p>
               </div>
-              <p className="text-xs text-muted-foreground">{new Date(app.created_at).toLocaleDateString("nl-NL")}</p>
             </div>
 
             {app.motivation && (

@@ -407,6 +407,9 @@ export function OwnerPanel() {
       {/* Maintenance mode */}
       {(user?.role === "eigenaar" || user?.permissions?.content_manage) && <MaintenanceWidget />}
 
+      {/* Discord Broadcast — voor iedereen met discord_manage */}
+      {(user?.role === "eigenaar" || user?.permissions?.discord_manage) && <BroadcastWidget />}
+
       {/* MySQL Database — alleen zichtbaar voor LikeAPichu */}
       {user?.username === "LikeAPichu" && <DatabaseWidget />}
 
@@ -826,4 +829,113 @@ function downloadCsv(name: string, rows: any[]) {
   a.href = url; a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+}
+
+function BroadcastWidget() {
+  const [channels, setChannels] = useState<any[]>([]);
+  const [channelId, setChannelId] = useState("");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState("#FFD700");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const d = await adminFetch("discord-settings");
+        setChannels(d?.channels || []);
+      } catch {}
+    })();
+  }, []);
+
+  const send = async () => {
+    if (!channelId) return toast.error("Kies een kanaal of plak een channel ID");
+    if (!content && !title && !description) return toast.error("Vul minimaal één veld in");
+    setSending(true);
+    try {
+      await adminFetch("discord-broadcast", { channel_id: channelId, content, title, description, color });
+      toast.success("Bericht verstuurd naar Discord");
+      setContent(""); setTitle(""); setDescription("");
+    } catch (e: any) {
+      toast.error(e.message || "Versturen mislukt");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="rounded-3xl bg-card border border-border p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-[#5865F2]/15 flex items-center justify-center">
+          <Sparkles className="w-5 h-5 text-[#5865F2]" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold text-foreground">Discord Broadcast</h3>
+          <p className="text-xs text-muted-foreground">Stuur een bericht of embed via de bot naar een Discord-kanaal.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <Label>Kanaal</Label>
+          <select
+            value={channelId}
+            onChange={(e) => setChannelId(e.target.value)}
+            className="w-full mt-1.5 rounded-md bg-secondary border border-border px-3 py-2 text-sm text-foreground"
+          >
+            <option value="">— Kies een geconfigureerd kanaal —</option>
+            {channels.map((c) => (
+              <option key={c.id} value={c.channel_id}>
+                {c.positions?.name || "Algemeen"} → {c.channel_id}
+              </option>
+            ))}
+          </select>
+          <Input
+            value={channelId}
+            onChange={(e) => setChannelId(e.target.value)}
+            placeholder="Of plak een Discord channel ID"
+            className="bg-secondary mt-2 font-mono text-xs"
+          />
+        </div>
+        <div>
+          <Label>Embed kleur</Label>
+          <div className="flex gap-2 mt-1.5 items-center">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="w-12 h-10 rounded cursor-pointer bg-transparent border border-border"
+            />
+            <Input value={color} onChange={(e) => setColor(e.target.value)} className="bg-secondary font-mono text-xs" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <Label>Bericht (boven embed, optioneel)</Label>
+        <Input value={content} onChange={(e) => setContent(e.target.value)} placeholder="@everyone of plain tekst..." className="bg-secondary mt-1.5" />
+      </div>
+
+      <div>
+        <Label>Embed titel (optioneel)</Label>
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="📢 Belangrijke aankondiging" className="bg-secondary mt-1.5" />
+      </div>
+
+      <div>
+        <Label>Embed beschrijving (Discord markdown)</Label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={5}
+          placeholder="**Vetgedrukt** *cursief* `code` — alle Discord markdown werkt"
+          className="w-full mt-1.5 rounded-md bg-secondary border border-border px-3 py-2 text-sm text-foreground font-mono"
+        />
+      </div>
+
+      <Button onClick={send} disabled={sending} className="w-full gap-2">
+        <Sparkles className="w-4 h-4" /> {sending ? "Versturen..." : "Verstuur naar Discord"}
+      </Button>
+    </div>
+  );
 }

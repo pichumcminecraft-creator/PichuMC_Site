@@ -28,8 +28,15 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Restore deep link from GitHub Pages 404 fallback
+      (function () {
+        var r = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (r && r !== location.href) history.replaceState(null, "", r);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-  </body>
-</html>
+

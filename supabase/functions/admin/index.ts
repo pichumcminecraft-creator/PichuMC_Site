@@ -58,7 +58,7 @@ function buildTaskEmbed(title: string, description: string | null, status: strin
   };
 }
 
-// Edge function v2 — includes mc-status & owner-action endpoints
+// Edge function v3 — adds dm-ticket-invite, discord-broadcast, bulk-applications, server-control
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -896,6 +896,65 @@ Deno.serve(async (req) => {
         activeStaff: activeStaff || [],
         activeStaffCount: (activeStaff || []).length,
       });
+    }
+
+    // === DISCORD BROADCAST (send embed/message to a channel via bot) ===
+    if (action === "discord-broadcast" && req.method === "POST") {
+      if (!hasPerm("discord_manage")) return jsonResponse({ error: "Geen toegang" }, 403);
+      const { channel_id, content, title, description, color, mention_role } = await req.json();
+      if (!channel_id) return jsonResponse({ error: "channel_id ontbreekt" }, 400);
+      if (!content && !description && !title) return jsonResponse({ error: "Geef content, titel of beschrijving" }, 400);
+
+      const { data: dSettings } = await supabase.from("discord_settings").select("bot_token").limit(1).single();
+      const botToken = dSettings?.bot_token;
+      if (!botToken) return jsonResponse({ error: "Discord bot token niet geconfigureerd" }, 400);
+
+      const colorInt = parseInt(String(color || "#FFD700").replace("#", ""), 16);
+      const mention = mention_role ? `<@&${mention_role}> ` : "";
+      const body: any = {
+        content: (mention + (content || "")).trim() || undefined,
+        allowed_mentions: { parse: ["roles"] },
+      };
+      if (title || description) {
+        body.embeds = [{
+          title: title || undefined,
+          description: description || undefined,
+          color: isNaN(colorInt) ? 0xFFD700 : colorInt,
+          footer: { text: `Verzonden door ${sessionUsername} • PichuMC Staff` },
+          timestamp: new Date().toISOString(),
+        }];
+      }
+      const r = await fetch(`https://discord.com/api/v10/channels/${channel_id}/messages`, {
+        method: "POST",
+        headers: { "Authorization": `Bot ${botToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        return jsonResponse({ error: `Discord verstuur fout: ${t}` }, 400);
+      }
+      await logActivity(session.userId, sessionUsername, "discord-broadcast", `Bericht verstuurd naar kanaal ${channel_id}`);
+      return jsonResponse({ success: true });
+    }
+
+    // === BULK APPLICATION ACTIONS ===
+    if (action === "bulk-applications" && req.method === "POST") {
+      if (!hasPerm("applications_manage")) return jsonResponse({ error: "Geen toegang" }, 403);
+      const { ids, op, status } = await req.json();
+      if (!Array.isArray(ids) || ids.length === 0) return jsonResponse({ error: "Geen sollicitaties geselecteerd" }, 400);
+      if (op === "delete") {
+        const { error } = await supabase.from("applications").delete().in("id", ids);
+        if (error) return jsonResponse({ error: error.message }, 400);
+        await logActivity(session.userId, sessionUsername, "bulk-delete-applications", `${ids.length} sollicitaties verwijderd`);
+        return jsonResponse({ success: true, count: ids.length });
+      }
+      if (op === "status" && status) {
+        const { error } = await supabase.from("applications").update({ status }).in("id", ids);
+        if (error) return jsonResponse({ error: error.message }, 400);
+        await logActivity(session.userId, sessionUsername, "bulk-update-applications", `${ids.length} sollicitaties → ${status}`);
+        return jsonResponse({ success: true, count: ids.length });
+      }
+      return jsonResponse({ error: "Ongeldige bulk operatie" }, 400);
     }
 
     // === MC SERVER STATUS (Owner Panel) ===
