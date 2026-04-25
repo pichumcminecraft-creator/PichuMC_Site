@@ -157,11 +157,37 @@ export function ApplicationsTab() {
 
   return (
     <>
+      <div className="flex items-center gap-2 flex-wrap mb-3 p-3 rounded-xl bg-card border border-border">
+        <Button size="sm" variant="ghost" className="gap-1" onClick={toggleAll}>
+          {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+          {allSelected ? "Deselecteer alles" : "Selecteer alles"}
+        </Button>
+        <span className="text-xs text-muted-foreground">{selected.size} geselecteerd</span>
+        {selected.size > 0 && (
+          <div className="flex gap-2 ml-auto flex-wrap">
+            <Button size="sm" className="bg-[#10B981] hover:bg-[#059669] text-foreground gap-1" onClick={() => bulkAction("status", "geaccepteerd")}>
+              <CheckCircle className="w-4 h-4" /> Accepteer ({selected.size})
+            </Button>
+            <Button size="sm" variant="destructive" className="gap-1" onClick={() => bulkAction("status", "afgewezen")}>
+              <XCircle className="w-4 h-4" /> Wijs af ({selected.size})
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1 text-destructive" onClick={() => bulkAction("delete")}>
+              <Trash2 className="w-4 h-4" /> Verwijder ({selected.size})
+            </Button>
+          </div>
+        )}
+      </div>
       <div className="space-y-4">
         {apps.map((app) => (
           <div key={app.id} className="card-glow rounded-xl bg-card p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div>
+            <div className="flex items-start justify-between mb-3 gap-3">
+              <div className="flex items-start gap-3 flex-1">
+                <Checkbox
+                  checked={selected.has(app.id)}
+                  onCheckedChange={() => toggleOne(app.id)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="font-bold text-foreground text-lg">{app.minecraft_username}</p>
                   <Badge style={{ backgroundColor: statusColors[app.status], color: "#000" }}>
