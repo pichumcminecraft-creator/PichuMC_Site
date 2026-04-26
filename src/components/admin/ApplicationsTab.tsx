@@ -44,6 +44,7 @@ export function ApplicationsTab() {
     "Bedankt voor je sollicitatie voor **{positie}**!\n\nOpen een **ticket** in onze Discord en vermeld dat het over je sollicitatie gaat."
   );
   const [dmColor, setDmColor] = useState("#FFD700");
+  const [dmDiscordId, setDmDiscordId] = useState("");
   const [sending, setSending] = useState(false);
 
   const allSelected = apps.length > 0 && selected.size === apps.length;
@@ -112,6 +113,9 @@ export function ApplicationsTab() {
       `Bedankt voor je sollicitatie voor **{positie}**!\n\nOm verder te gaan vragen we je een **ticket** te openen in onze Discord server. Een staff lid neemt zo snel mogelijk contact met je op.\n\n**Stappen:**\n1. Ga naar het \`#tickets\` kanaal\n2. Klik op "Maak een ticket"\n3. Vermeld dat het over je sollicitatie voor **{positie}** gaat`
     );
     setDmColor(app.positions?.color || "#FFD700");
+    // If discord_username already looks like a numeric ID, prefill it
+    const v = String(app.discord_username || "").trim();
+    setDmDiscordId(/^\d{17,20}$/.test(v) ? v : "");
   };
 
   const wrapSelection = (id: string, before: string, after: string = before) => {
@@ -138,6 +142,7 @@ export function ApplicationsTab() {
     try {
       await adminFetch("dm-ticket-invite", {
         application_id: dmTarget.id,
+        discord_user_id: dmDiscordId.trim() || undefined,
         custom_title: dmTitle,
         custom_description: dmDescription,
         custom_content: dmContent,
