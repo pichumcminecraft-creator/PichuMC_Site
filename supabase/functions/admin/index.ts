@@ -306,30 +306,40 @@ Deno.serve(async (req) => {
         .eq("id", application_id)
         .single();
       if (!app) return jsonResponse({ error: "Sollicitatie niet gevonden" }, 404);
-      if (!app.discord_username) return jsonResponse({ error: "Geen Discord gebruikersnaam opgegeven" }, 400);
+      if (!app.discord_username) return jsonResponse({ error: "Geen Discord gebruikersnaam/ID opgegeven" }, 400);
 
       const { data: dSettings } = await supabase.from("discord_settings").select("bot_token, guild_id").limit(1).single();
       const botToken = dSettings?.bot_token;
       const guildId = dSettings?.guild_id;
       if (!botToken) return jsonResponse({ error: "Discord bot token niet geconfigureerd (Owner Panel → Discord)" }, 400);
-      if (!guildId) return jsonResponse({ error: "Discord guild_id niet geconfigureerd (Owner Panel → Discord)" }, 400);
 
-      // Search the guild for the member by username
-      const cleanName = String(app.discord_username).replace(/^@/, "").split("#")[0].toLowerCase();
-      const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanName)}&limit=10`, {
-        headers: { "Authorization": `Bot ${botToken}` },
-      });
-      if (!searchRes.ok) {
-        const t = await searchRes.text();
-        return jsonResponse({ error: `Discord zoek-fout (heeft de bot 'Server Members Intent' aan?): ${t}` }, 400);
+      // Allow override via body, OR auto-detect Discord User ID (purely numeric, 17-20 digits)
+      const rawInput = String(body.discord_user_id || app.discord_username).trim().replace(/^@/, "");
+      const idMatch = rawInput.match(/^\d{17,20}$/);
+      let resolvedUserId: string | null = idMatch ? rawInput : null;
+
+      if (!resolvedUserId) {
+        // Fallback: lookup by username in guild
+        if (!guildId) return jsonResponse({ error: "Geen Discord User ID opgegeven en guild_id niet geconfigureerd. Vul een Discord User ID in." }, 400);
+        const cleanName = rawInput.split("#")[0].toLowerCase();
+        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanName)}&limit=10`, {
+          headers: { "Authorization": `Bot ${botToken}` },
+        });
+        if (!searchRes.ok) {
+          const t = await searchRes.text();
+          return jsonResponse({ error: `Discord zoek-fout (vul een Discord User ID in): ${t}` }, 400);
+        }
+        const members: any[] = await searchRes.json();
+        const m = members.find((mm) =>
+          (mm.user?.username || "").toLowerCase() === cleanName ||
+          (mm.user?.global_name || "").toLowerCase() === cleanName ||
+          (mm.nick || "").toLowerCase() === cleanName
+        ) || members[0];
+        if (!m?.user?.id) return jsonResponse({ error: `Gebruiker '${app.discord_username}' niet gevonden. Tip: gebruik een Discord User ID i.p.v. naam.` }, 404);
+        resolvedUserId = m.user.id;
       }
-      const members: any[] = await searchRes.json();
-      const match = members.find((m) =>
-        (m.user?.username || "").toLowerCase() === cleanName ||
-        (m.user?.global_name || "").toLowerCase() === cleanName ||
-        (m.nick || "").toLowerCase() === cleanName
-      ) || members[0];
-      if (!match?.user?.id) return jsonResponse({ error: `Gebruiker '${app.discord_username}' niet gevonden in de Discord server` }, 404);
+
+      const match: any = { user: { id: resolvedUserId } };
 
       // Open DM channel
       const dmRes = await fetch(`https://discord.com/api/v10/users/@me/channels`, {
