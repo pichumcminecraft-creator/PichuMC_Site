@@ -44,6 +44,7 @@ export function ApplicationsTab() {
     "Bedankt voor je sollicitatie voor **{positie}**!\n\nOpen een **ticket** in onze Discord en vermeld dat het over je sollicitatie gaat."
   );
   const [dmColor, setDmColor] = useState("#FFD700");
+  const [dmDiscordId, setDmDiscordId] = useState("");
   const [sending, setSending] = useState(false);
 
   const allSelected = apps.length > 0 && selected.size === apps.length;
@@ -112,6 +113,9 @@ export function ApplicationsTab() {
       `Bedankt voor je sollicitatie voor **{positie}**!\n\nOm verder te gaan vragen we je een **ticket** te openen in onze Discord server. Een staff lid neemt zo snel mogelijk contact met je op.\n\n**Stappen:**\n1. Ga naar het \`#tickets\` kanaal\n2. Klik op "Maak een ticket"\n3. Vermeld dat het over je sollicitatie voor **{positie}** gaat`
     );
     setDmColor(app.positions?.color || "#FFD700");
+    // If discord_username already looks like a numeric ID, prefill it
+    const v = String(app.discord_username || "").trim();
+    setDmDiscordId(/^\d{17,20}$/.test(v) ? v : "");
   };
 
   const wrapSelection = (id: string, before: string, after: string = before) => {
@@ -138,6 +142,7 @@ export function ApplicationsTab() {
     try {
       await adminFetch("dm-ticket-invite", {
         application_id: dmTarget.id,
+        discord_user_id: dmDiscordId.trim() || undefined,
         custom_title: dmTitle,
         custom_description: dmDescription,
         custom_content: dmContent,
@@ -178,8 +183,12 @@ export function ApplicationsTab() {
         )}
       </div>
       <div className="space-y-4">
-        {apps.map((app) => (
-          <div key={app.id} className="card-glow rounded-xl bg-card p-5">
+        {apps.map((app, idx) => (
+          <div
+            key={app.id}
+            className="card-glow rounded-xl bg-card p-5 animate-fade-in-up hover:scale-[1.01] transition-transform duration-200"
+            style={{ animationDelay: `${Math.min(idx * 40, 400)}ms`, animationFillMode: "backwards" }}
+          >
             <div className="flex items-start gap-3 mb-3">
               <Checkbox
                 checked={selected.has(app.id)}
@@ -254,6 +263,23 @@ export function ApplicationsTab() {
               <code className="text-primary">{"{minecraft}"}</code> = Minecraft naam •{" "}
               <code className="text-primary">{"{positie}"}</code> = positie •{" "}
               <code className="text-primary">{"{discord}"}</code> = Discord naam
+            </div>
+
+            <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 animate-fade-in">
+              <Label htmlFor="dm-discord-id" className="text-primary">
+                Discord User ID <span className="text-xs text-muted-foreground font-normal">(aanbevolen — werkt altijd)</span>
+              </Label>
+              <Input
+                id="dm-discord-id"
+                value={dmDiscordId}
+                onChange={(e) => setDmDiscordId(e.target.value)}
+                placeholder="Bijv. 123456789012345678"
+                className="bg-secondary mt-1.5 font-mono"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                💡 Rechtsklik op de gebruiker in Discord → "Copy User ID" (Developer Mode aan).
+                Leeg = zoekt op naam "{dmTarget?.discord_username}" via guild members (kan falen).
+              </p>
             </div>
 
             <div>

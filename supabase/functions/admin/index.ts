@@ -306,30 +306,40 @@ Deno.serve(async (req) => {
         .eq("id", application_id)
         .single();
       if (!app) return jsonResponse({ error: "Sollicitatie niet gevonden" }, 404);
-      if (!app.discord_username) return jsonResponse({ error: "Geen Discord gebruikersnaam opgegeven" }, 400);
+      if (!app.discord_username) return jsonResponse({ error: "Geen Discord gebruikersnaam/ID opgegeven" }, 400);
 
       const { data: dSettings } = await supabase.from("discord_settings").select("bot_token, guild_id").limit(1).single();
       const botToken = dSettings?.bot_token;
       const guildId = dSettings?.guild_id;
       if (!botToken) return jsonResponse({ error: "Discord bot token niet geconfigureerd (Owner Panel → Discord)" }, 400);
-      if (!guildId) return jsonResponse({ error: "Discord guild_id niet geconfigureerd (Owner Panel → Discord)" }, 400);
 
-      // Search the guild for the member by username
-      const cleanName = String(app.discord_username).replace(/^@/, "").split("#")[0].toLowerCase();
-      const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanName)}&limit=10`, {
-        headers: { "Authorization": `Bot ${botToken}` },
-      });
-      if (!searchRes.ok) {
-        const t = await searchRes.text();
-        return jsonResponse({ error: `Discord zoek-fout (heeft de bot 'Server Members Intent' aan?): ${t}` }, 400);
+      // Allow override via body, OR auto-detect Discord User ID (purely numeric, 17-20 digits)
+      const rawInput = String(body.discord_user_id || app.discord_username).trim().replace(/^@/, "");
+      const idMatch = rawInput.match(/^\d{17,20}$/);
+      let resolvedUserId: string | null = idMatch ? rawInput : null;
+
+      if (!resolvedUserId) {
+        // Fallback: lookup by username in guild
+        if (!guildId) return jsonResponse({ error: "Geen Discord User ID opgegeven en guild_id niet geconfigureerd. Vul een Discord User ID in." }, 400);
+        const cleanName = rawInput.split("#")[0].toLowerCase();
+        const searchRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/search?query=${encodeURIComponent(cleanName)}&limit=10`, {
+          headers: { "Authorization": `Bot ${botToken}` },
+        });
+        if (!searchRes.ok) {
+          const t = await searchRes.text();
+          return jsonResponse({ error: `Discord zoek-fout (vul een Discord User ID in): ${t}` }, 400);
+        }
+        const members: any[] = await searchRes.json();
+        const m = members.find((mm) =>
+          (mm.user?.username || "").toLowerCase() === cleanName ||
+          (mm.user?.global_name || "").toLowerCase() === cleanName ||
+          (mm.nick || "").toLowerCase() === cleanName
+        ) || members[0];
+        if (!m?.user?.id) return jsonResponse({ error: `Gebruiker '${app.discord_username}' niet gevonden. Tip: gebruik een Discord User ID i.p.v. naam.` }, 404);
+        resolvedUserId = m.user.id;
       }
-      const members: any[] = await searchRes.json();
-      const match = members.find((m) =>
-        (m.user?.username || "").toLowerCase() === cleanName ||
-        (m.user?.global_name || "").toLowerCase() === cleanName ||
-        (m.nick || "").toLowerCase() === cleanName
-      ) || members[0];
-      if (!match?.user?.id) return jsonResponse({ error: `Gebruiker '${app.discord_username}' niet gevonden in de Discord server` }, 404);
+
+      const match: any = { user: { id: resolvedUserId } };
 
       // Open DM channel
       const dmRes = await fetch(`https://discord.com/api/v10/users/@me/channels`, {
@@ -1051,6 +1061,147 @@ Deno.serve(async (req) => {
         }
         default:
           return jsonResponse({ error: "Onbekende owner actie" }, 400);
+      }
+    }
+
+    // ============================================================
+    // === PTERODACTYL SERVER MANAGEMENT (Client API) =============
+    // ============================================================
+    const ptero = async (path: string, method: string = "GET", body?: unknown) => {
+      const base = (Deno.env.get("PTERODACTYL_PANEL_URL") || "").replace(/\/+$/, "");
+      const tok = Deno.env.get("PTERODACTYL_CLIENT_TOKEN");
+      if (!base || !tok) throw new Error("Pterodactyl niet geconfigureerd (PTERODACTYL_PANEL_URL / PTERODACTYL_CLIENT_TOKEN)");
+      const url = base.startsWith("http") ? `${base}${path}` : `https://${base}${path}`;
+      const r = await fetch(url, {
+        method,
+        headers: {
+          "Authorization": `Bearer ${tok}`,
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await r.text();
+      if (!r.ok) throw new Error(`Pterodactyl ${r.status}: ${text.slice(0, 300)}`);
+      return text ? (text.startsWith("{") || text.startsWith("[") ? JSON.parse(text) : text) : null;
+    };
+
+    // Per-server permissions stored on a role: ptero_servers[serverId] = { view, power, console, whitelist, players }
+    const canServer = (serverId: string, perm: "view" | "power" | "console" | "whitelist" | "players") => {
+      if (isOwner) return true;
+      const ps: any = (session.permissions as any)?.ptero_servers || {};
+      const sp = ps[serverId];
+      if (!sp) return false;
+      if (perm !== "view" && !sp.view) return false;
+      return !!sp[perm];
+    };
+
+    if (action === "ptero-servers") {
+      try {
+        const data = await ptero("/api/client?per_page=100");
+        const servers = (data?.data || []).map((s: any) => ({
+          identifier: s.attributes?.identifier,
+          uuid: s.attributes?.uuid,
+          name: s.attributes?.name,
+          description: s.attributes?.description,
+          node: s.attributes?.node,
+          limits: s.attributes?.limits,
+          is_owner: s.attributes?.server_owner,
+          status: s.attributes?.status,
+        }));
+        // Filter: owners see all, others see only servers they have at least 'view' on
+        const visible = isOwner ? servers : servers.filter((s: any) => canServer(s.identifier, "view"));
+        return jsonResponse({ servers: visible });
+      } catch (e: any) {
+        return jsonResponse({ error: e.message }, 400);
+      }
+    }
+
+    if (action === "ptero-resources") {
+      const id = url.searchParams.get("id");
+      if (!id) return jsonResponse({ error: "id ontbreekt" }, 400);
+      if (!canServer(id, "view")) return jsonResponse({ error: "Geen toegang tot deze server" }, 403);
+      try {
+        const data = await ptero(`/api/client/servers/${id}/resources`);
+        return jsonResponse(data?.attributes || {});
+      } catch (e: any) {
+        return jsonResponse({ error: e.message }, 400);
+      }
+    }
+
+    if (action === "ptero-power" && req.method === "POST") {
+      const { id, signal } = await req.json();
+      if (!id || !signal) return jsonResponse({ error: "id en signal vereist" }, 400);
+      if (!["start", "stop", "restart", "kill"].includes(signal)) return jsonResponse({ error: "Ongeldig signal" }, 400);
+      if (!canServer(id, "power")) return jsonResponse({ error: "Geen power-permissie voor deze server" }, 403);
+      try {
+        await ptero(`/api/client/servers/${id}/power`, "POST", { signal });
+        await logActivity(session.userId, sessionUsername, "ptero-power", `Server ${id}: ${signal}`);
+        return jsonResponse({ success: true });
+      } catch (e: any) {
+        return jsonResponse({ error: e.message }, 400);
+      }
+    }
+
+    if (action === "ptero-command" && req.method === "POST") {
+      const { id, command } = await req.json();
+      if (!id || !command) return jsonResponse({ error: "id en command vereist" }, 400);
+      // Whitelist commands need 'whitelist'; rest need 'console'
+      const isWhitelistCmd = /^(whitelist|wl)\s+/i.test(command);
+      const requiredPerm: "console" | "whitelist" = isWhitelistCmd ? "whitelist" : "console";
+      if (!canServer(id, requiredPerm)) return jsonResponse({ error: `Geen ${requiredPerm}-permissie voor deze server` }, 403);
+      try {
+        await ptero(`/api/client/servers/${id}/command`, "POST", { command });
+        await logActivity(session.userId, sessionUsername, "ptero-command", `Server ${id}: \`${command}\``);
+        return jsonResponse({ success: true });
+      } catch (e: any) {
+        return jsonResponse({ error: e.message }, 400);
+      }
+    }
+
+    // Read whitelist.json from server file
+    if (action === "ptero-whitelist") {
+      const id = url.searchParams.get("id");
+      if (!id) return jsonResponse({ error: "id ontbreekt" }, 400);
+      if (!canServer(id, "whitelist")) return jsonResponse({ error: "Geen whitelist-permissie" }, 403);
+      try {
+        const raw = await ptero(`/api/client/servers/${id}/files/contents?file=${encodeURIComponent("/whitelist.json")}`);
+        let list: Array<{ uuid?: string; name: string }> = [];
+        try {
+          list = typeof raw === "string" ? JSON.parse(raw) : raw;
+        } catch {
+          list = [];
+        }
+        return jsonResponse({ whitelist: Array.isArray(list) ? list : [] });
+      } catch (e: any) {
+        // No whitelist file yet
+        return jsonResponse({ whitelist: [], note: e.message });
+      }
+    }
+
+    if (action === "ptero-list-files") {
+      const id = url.searchParams.get("id");
+      const dir = url.searchParams.get("dir") || "/";
+      if (!id) return jsonResponse({ error: "id ontbreekt" }, 400);
+      if (!canServer(id, "view")) return jsonResponse({ error: "Geen toegang" }, 403);
+      try {
+        const data = await ptero(`/api/client/servers/${id}/files/list?directory=${encodeURIComponent(dir)}`);
+        return jsonResponse({ files: data?.data || [] });
+      } catch (e: any) {
+        return jsonResponse({ error: e.message }, 400);
+      }
+    }
+
+    // Get a one-time websocket token to view live console
+    if (action === "ptero-console-ws") {
+      const id = url.searchParams.get("id");
+      if (!id) return jsonResponse({ error: "id ontbreekt" }, 400);
+      if (!canServer(id, "console")) return jsonResponse({ error: "Geen console-permissie" }, 403);
+      try {
+        const data = await ptero(`/api/client/servers/${id}/websocket`);
+        return jsonResponse(data?.data || {});
+      } catch (e: any) {
+        return jsonResponse({ error: e.message }, 400);
       }
     }
 
