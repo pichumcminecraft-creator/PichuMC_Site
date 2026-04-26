@@ -265,6 +265,23 @@ export function ApplicationsTab() {
               <code className="text-primary">{"{discord}"}</code> = Discord naam
             </div>
 
+            <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 animate-fade-in">
+              <Label htmlFor="dm-discord-id" className="text-primary">
+                Discord User ID <span className="text-xs text-muted-foreground font-normal">(aanbevolen — werkt altijd)</span>
+              </Label>
+              <Input
+                id="dm-discord-id"
+                value={dmDiscordId}
+                onChange={(e) => setDmDiscordId(e.target.value)}
+                placeholder="Bijv. 123456789012345678"
+                className="bg-secondary mt-1.5 font-mono"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                💡 Rechtsklik op de gebruiker in Discord → "Copy User ID" (Developer Mode aan).
+                Leeg = zoekt op naam "{dmTarget?.discord_username}" via guild members (kan falen).
+              </p>
+            </div>
+
             <div>
               <Label htmlFor="dm-content">Bericht (boven embed)</Label>
               <Input id="dm-content" value={dmContent} onChange={(e) => setDmContent(e.target.value)} className="bg-secondary" />
