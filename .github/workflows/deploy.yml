@@ -31,10 +31,10 @@ jobs:
           VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID || 'xxtlzmgjivvclbpmcjbg' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dGx6bWdqaXZ2Y2xicG1jamJnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4OTU2NDAsImV4cCI6MjA5MTQ3MTY0MH0.d7zhYxjE4DZkk1Ybon4EK6ZBRqbutLTmMncHzWvqTyQ' }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://xxtlzmgjivvclbpmcjbg.supabase.co' }}
+          # If deploying to https://<user>.github.io/<repo>/ (no custom domain),
+          # set VITE_BASE_PATH repo secret to "/<repo>/" — including leading & trailing slash.
+          VITE_BASE_PATH: ${{ secrets.VITE_BASE_PATH || '/' }}
         run: bun run build
-
-      - name: SPA fallback (copy index.html → 404.html)
-        run: cp dist/index.html dist/404.html
 
       - name: Copy CNAME
         run: |
