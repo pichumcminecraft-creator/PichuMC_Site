@@ -5,8 +5,9 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  // Relative base so the build works on GitHub Pages (both apex domains and /repo/ sub-paths)
-  base: mode === "production" ? "./" : "/",
+  // For GitHub Pages: set VITE_BASE_PATH=/<repo-name>/ in CI when not using a custom apex domain.
+  // Defaults to '/' which works for custom domains and the Lovable preview.
+  base: process.env.VITE_BASE_PATH || "/",
   server: {
     host: "::",
     port: 8080,
