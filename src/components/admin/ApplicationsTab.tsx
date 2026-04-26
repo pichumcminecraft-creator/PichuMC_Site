@@ -183,8 +183,12 @@ export function ApplicationsTab() {
         )}
       </div>
       <div className="space-y-4">
-        {apps.map((app) => (
-          <div key={app.id} className="card-glow rounded-xl bg-card p-5">
+        {apps.map((app, idx) => (
+          <div
+            key={app.id}
+            className="card-glow rounded-xl bg-card p-5 animate-fade-in-up hover:scale-[1.01] transition-transform duration-200"
+            style={{ animationDelay: `${Math.min(idx * 40, 400)}ms`, animationFillMode: "backwards" }}
+          >
             <div className="flex items-start gap-3 mb-3">
               <Checkbox
                 checked={selected.has(app.id)}
