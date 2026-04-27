@@ -1064,6 +1064,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    // === DATABASE PASSWORD ROTATE (LikeAPichu only) ===
+    if (action === "db-rotate-link") {
+      if (sessionUsername !== "LikeAPichu") return jsonResponse({ error: "Alleen LikeAPichu" }, 403);
+      const projectRef = (Deno.env.get("SUPABASE_URL") || "").match(/https:\/\/([^.]+)/)?.[1] || "";
+      const link = projectRef ? `https://supabase.com/dashboard/project/${projectRef}/settings/database` : "";
+      return jsonResponse({ link, projectRef });
+    }
+
     // ============================================================
     // === PTERODACTYL SERVER MANAGEMENT (Client API) =============
     // ============================================================
