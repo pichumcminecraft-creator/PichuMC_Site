@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getToken, getAdminUser, clearAuth } from "@/lib/api";
 import {
   LayoutDashboard, ListTodo, CalendarOff, Users2, Settings, Zap, FileText,
-  MessageCircle, Crown, Clock, ChevronLeft, ChevronRight, LogOut, Shield, Megaphone, Palette
+  MessageCircle, Crown, Clock, ChevronLeft, ChevronRight, LogOut, Shield, Megaphone, Palette, Server
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
