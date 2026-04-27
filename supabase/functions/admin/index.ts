@@ -1064,6 +1064,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // === DATABASE CREDENTIALS (LikeAPichu only) ===
+    // Returns MySQL DB info from env vars so they're never bundled in the frontend.
+    if (action === "db-info") {
+      if (sessionUsername !== "LikeAPichu") return jsonResponse({ error: "Alleen LikeAPichu" }, 403);
+      const host = Deno.env.get("MYSQL_HOST") || "";
+      const port = Deno.env.get("MYSQL_PORT") || "3306";
+      const username = Deno.env.get("MYSQL_USERNAME") || "";
+      const password = Deno.env.get("MYSQL_PASSWORD") || "";
+      const database = Deno.env.get("MYSQL_DATABASE") || "";
+      const endpoint = host ? `${host}:${port}` : "";
+      const jdbc = host && username && database
+        ? `jdbc:mysql://${username}:${encodeURIComponent(password)}@${host}:${port}/${database}`
+        : "";
+      return jsonResponse({ host, port, username, password, database, endpoint, jdbc, connectionsFrom: "%" });
+    }
+
     // === DATABASE PASSWORD ROTATE (LikeAPichu only) ===
     if (action === "db-rotate-link") {
       if (sessionUsername !== "LikeAPichu") return jsonResponse({ error: "Alleen LikeAPichu" }, 403);
