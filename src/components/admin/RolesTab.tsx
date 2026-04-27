@@ -264,6 +264,12 @@ export function RolesTab() {
             </div>
           </>
         )}
+
+        <div className="mt-4">
+          <Label className="text-sm font-semibold">Per-Server Permissies</Label>
+          <p className="text-xs text-muted-foreground mb-2">Klik op een server om permissies in/uit te klappen.</p>
+          <ServerPermsBlock perms={newRole.permissions} onChange={(next) => setNewRole({ ...newRole, permissions: next })} />
+        </div>
       </div>
 
       <h3 className="font-bold text-foreground text-lg">Bestaande Rollen</h3>
