@@ -39,16 +39,7 @@ const MC_SERVERS = [
   { key: "events", name: "Events", host: "node-07.bluxnetwork.eu", port: 25000 },
 ] as const;
 
-const DB_INFO = {
-  endpoint: "5.175.192.176:3306",
-  host: "5.175.192.176",
-  port: "3306",
-  connectionsFrom: "%",
-  username: "u161_hp1IoNxLiQ",
-  password: "6KsbZLtIwL3xhwK4+h3@!E4h",
-  database: "s161_SitePichumc",
-  jdbc: "jdbc:mysql://u161_hp1IoNxLiQ:6KsbZLtIwL3xhwK4%2Bh3%40!E4h@5.175.192.176:3306/s161_SitePichumc",
-} as const;
+// MySQL credentials are loaded from the backend (env vars) — never hardcoded in the frontend bundle.
 
 const SUPPORTED_ACTIONS = new Set([
   "delete-rejected-applications",
@@ -669,6 +660,52 @@ function CopyField({ label, value, monospace = false, sensitive = false }: { lab
 }
 
 function DatabaseWidget() {
+  const me = getAdminUser();
+  const isMaster = me?.username === "LikeAPichu";
+  const [info, setInfo] = useState<{
+    endpoint: string; host: string; port: string; username: string;
+    password: string; database: string; jdbc: string; connectionsFrom: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [rotateBusy, setRotateBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isMaster) return;
+    setLoading(true);
+    adminFetch("db-info")
+      .then(setInfo)
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
+  }, [isMaster]);
+
+  const openRotateLink = async () => {
+    setRotateBusy(true);
+    try {
+      const r = await adminFetch("db-rotate-link");
+      if (r?.link) window.open(r.link, "_blank");
+      else toast.error("Geen rotate-link beschikbaar");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setRotateBusy(false);
+    }
+  };
+
+  if (!isMaster) {
+    return (
+      <div className="rounded-3xl bg-card border border-border p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Database className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">MySQL Database</h2>
+          <Lock className="w-3.5 h-3.5 text-muted-foreground ml-auto" />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Database credentials zijn alleen zichtbaar voor LikeAPichu.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-3xl bg-card border border-border p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -679,28 +716,53 @@ function DatabaseWidget() {
             Actief
           </span>
         </div>
-        <span className="text-[10px] text-muted-foreground font-mono">{DB_INFO.database}</span>
+        {info?.database && (
+          <span className="text-[10px] text-muted-foreground font-mono">{info.database}</span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-        <CopyField label="Endpoint" value={DB_INFO.endpoint} monospace />
-        <CopyField label="Connections from" value={DB_INFO.connectionsFrom} monospace />
-        <CopyField label="Username" value={DB_INFO.username} monospace />
-        <CopyField label="Database" value={DB_INFO.database} monospace />
-        <CopyField label="Host" value={DB_INFO.host} monospace />
-        <CopyField label="Port" value={DB_INFO.port} monospace />
-      </div>
+      {loading || !info ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+          <Loader2 className="w-4 h-4 animate-spin" /> Credentials laden...
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <CopyField label="Endpoint" value={info.endpoint} monospace />
+            <CopyField label="Connections from" value={info.connectionsFrom} monospace />
+            <CopyField label="Username" value={info.username} monospace />
+            <CopyField label="Database" value={info.database} monospace />
+            <CopyField label="Host" value={info.host} monospace />
+            <CopyField label="Port" value={info.port} monospace />
+          </div>
 
-      <div className="space-y-3">
-        <CopyField label="Password" value={DB_INFO.password} monospace sensitive />
-        <CopyField label="JDBC connection string" value={DB_INFO.jdbc} monospace sensitive />
+          <div className="space-y-3">
+            <CopyField label="Password" value={info.password} monospace sensitive />
+            <CopyField label="JDBC connection string" value={info.jdbc} monospace sensitive />
+          </div>
+        </>
+      )}
+
+      <div className="mt-4 flex flex-col sm:flex-row gap-2">
+        <Button
+          onClick={openRotateLink}
+          disabled={rotateBusy}
+          variant="outline"
+          className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10"
+        >
+          {rotateBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+          DB Wachtwoord Wijzigen
+        </Button>
+        <p className="text-[11px] text-muted-foreground self-center">
+          Opent het Supabase dashboard waar je het wachtwoord veilig kunt rouleren.
+        </p>
       </div>
 
       <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-destructive/5 border border-destructive/20">
         <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
         <p className="text-xs text-muted-foreground">
           Deze credentials geven volledige toegang tot de productie-database. Deel ze nooit en roteer het wachtwoord
-          regelmatig via je hosting paneel.
+          regelmatig.
         </p>
       </div>
     </div>

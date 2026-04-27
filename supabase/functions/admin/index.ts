@@ -1064,6 +1064,30 @@ Deno.serve(async (req) => {
       }
     }
 
+    // === DATABASE CREDENTIALS (LikeAPichu only) ===
+    // Returns MySQL DB info from env vars so they're never bundled in the frontend.
+    if (action === "db-info") {
+      if (sessionUsername !== "LikeAPichu") return jsonResponse({ error: "Alleen LikeAPichu" }, 403);
+      const host = Deno.env.get("MYSQL_HOST") || "";
+      const port = Deno.env.get("MYSQL_PORT") || "3306";
+      const username = Deno.env.get("MYSQL_USERNAME") || "";
+      const password = Deno.env.get("MYSQL_PASSWORD") || "";
+      const database = Deno.env.get("MYSQL_DATABASE") || "";
+      const endpoint = host ? `${host}:${port}` : "";
+      const jdbc = host && username && database
+        ? `jdbc:mysql://${username}:${encodeURIComponent(password)}@${host}:${port}/${database}`
+        : "";
+      return jsonResponse({ host, port, username, password, database, endpoint, jdbc, connectionsFrom: "%" });
+    }
+
+    // === DATABASE PASSWORD ROTATE (LikeAPichu only) ===
+    if (action === "db-rotate-link") {
+      if (sessionUsername !== "LikeAPichu") return jsonResponse({ error: "Alleen LikeAPichu" }, 403);
+      const projectRef = (Deno.env.get("SUPABASE_URL") || "").match(/https:\/\/([^.]+)/)?.[1] || "";
+      const link = projectRef ? `https://supabase.com/dashboard/project/${projectRef}/settings/database` : "";
+      return jsonResponse({ link, projectRef });
+    }
+
     // ============================================================
     // === PTERODACTYL SERVER MANAGEMENT (Client API) =============
     // ============================================================
@@ -1086,14 +1110,15 @@ Deno.serve(async (req) => {
       return text ? (text.startsWith("{") || text.startsWith("[") ? JSON.parse(text) : text) : null;
     };
 
-    // Per-server permissions stored on a role: ptero_servers[serverId] = { view, power, console, whitelist, players }
+    // Per-server permissions stored as flat keys: srv_<serverId>_<perm>
+    // perms: view, power, console, whitelist, players
     const canServer = (serverId: string, perm: "view" | "power" | "console" | "whitelist" | "players") => {
       if (isOwner) return true;
-      const ps: any = (session.permissions as any)?.ptero_servers || {};
-      const sp = ps[serverId];
-      if (!sp) return false;
-      if (perm !== "view" && !sp.view) return false;
-      return !!sp[perm];
+      const p: any = session.permissions || {};
+      // backward compat with the older nested ptero_servers shape
+      const nested = p.ptero_servers?.[serverId];
+      if (perm !== "view" && !p[`srv_${serverId}_view`] && !nested?.view) return false;
+      return !!p[`srv_${serverId}_${perm}`] || !!nested?.[perm];
     };
 
     if (action === "ptero-servers") {
@@ -1205,7 +1230,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ error: "Onbekende actie" }, 400);
+    return jsonResponse({ error: `Onbekende actie: ${action}` }, 400);
   } catch (err) {
     return jsonResponse({ error: (err as Error).message }, 500);
   }

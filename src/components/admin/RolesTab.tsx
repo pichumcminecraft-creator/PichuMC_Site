@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { adminFetch } from "@/lib/api";
+import { adminFetch, getAdminUser } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Crown, ChevronDown, ChevronRight, Info, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, Crown, ChevronDown, ChevronRight, Info, ArrowUp, ArrowDown, Server, Lock } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
@@ -40,13 +40,24 @@ interface Role {
   sort_order: number;
 }
 
+const SERVER_PERMS: Array<{ key: "view" | "power" | "console" | "whitelist" | "players"; label: string }> = [
+  { key: "view", label: "Bekijken" },
+  { key: "power", label: "Power (start/stop)" },
+  { key: "console", label: "Console" },
+  { key: "whitelist", label: "Whitelist" },
+  { key: "players", label: "Spelers" },
+];
+
 export function RolesTab() {
+  const me = getAdminUser();
+  const canEditPerms = me?.username === "LikeAPichu";
   const [roles, setRoles] = useState<Role[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
+  const [servers, setServers] = useState<any[]>([]);
   const [newRole, setNewRole] = useState({ name: "", color: "#3B82F6", permissions: {} as Record<string, boolean> });
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  useEffect(() => { load(); loadPositions(); }, []);
+  useEffect(() => { load(); loadPositions(); loadServers(); }, []);
 
   const load = async () => {
     try {
@@ -59,6 +70,13 @@ export function RolesTab() {
     try {
       const data = await adminFetch("positions");
       setPositions(data || []);
+    } catch {}
+  };
+
+  const loadServers = async () => {
+    try {
+      const data = await adminFetch("ptero-servers");
+      setServers(data?.servers || []);
     } catch {}
   };
 
@@ -128,8 +146,71 @@ export function RolesTab() {
     </Tooltip>
   );
 
+  const ServerPermsBlock = ({
+    perms,
+    onChange,
+  }: {
+    perms: Record<string, boolean>;
+    onChange: (next: Record<string, boolean>) => void;
+  }) => {
+    const [openId, setOpenId] = useState<string | null>(null);
+    if (servers.length === 0) {
+      return (
+        <p className="text-xs text-muted-foreground italic">
+          Geen servers geladen (Pterodactyl koppeling nog niet beschikbaar of geen toegang).
+        </p>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        {servers.map((srv) => {
+          const open = openId === srv.identifier;
+          const activeCount = SERVER_PERMS.filter((p) => perms[`srv_${srv.identifier}_${p.key}`]).length;
+          return (
+            <div key={srv.identifier} className="rounded-lg bg-secondary/50 border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setOpenId(open ? null : srv.identifier)}
+                className="w-full flex items-center gap-3 p-3 hover:bg-secondary transition-colors"
+              >
+                <Server className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-foreground flex-1 text-left">{srv.name}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {activeCount}/{SERVER_PERMS.length} perms
+                </span>
+                {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {open && (
+                <div className="px-3 pb-3 grid grid-cols-2 md:grid-cols-3 gap-2 border-t border-border pt-3">
+                  {SERVER_PERMS.map((p) => {
+                    const k = `srv_${srv.identifier}_${p.key}`;
+                    return (
+                      <label key={k} className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                        <Checkbox checked={!!perms[k]} onCheckedChange={() => onChange({ ...perms, [k]: !perms[k] })} />
+                        {p.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className={"space-y-6 " + (canEditPerms ? "" : "pointer-events-none opacity-70")}>
+      {!canEditPerms && (
+        <div className="card-glow rounded-xl bg-destructive/10 border border-destructive/30 p-4 flex items-center gap-3 pointer-events-auto opacity-100">
+          <Lock className="w-5 h-5 text-destructive shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-foreground">Alleen LikeAPichu kan rol-permissies bewerken</p>
+            <p className="text-xs text-muted-foreground">Je kunt rollen wel bekijken, maar niet aanpassen.</p>
+          </div>
+        </div>
+      )}
       <div className="card-glow rounded-xl bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
           <Plus className="w-4 h-4 text-primary" />
@@ -183,6 +264,12 @@ export function RolesTab() {
             </div>
           </>
         )}
+
+        <div className="mt-4">
+          <Label className="text-sm font-semibold">Per-Server Permissies</Label>
+          <p className="text-xs text-muted-foreground mb-2">Klik op een server om permissies in/uit te klappen.</p>
+          <ServerPermsBlock perms={newRole.permissions} onChange={(next) => setNewRole({ ...newRole, permissions: next })} />
+        </div>
       </div>
 
       <h3 className="font-bold text-foreground text-lg">Bestaande Rollen</h3>
@@ -254,6 +341,13 @@ export function RolesTab() {
                         </div>
                       </>
                     )}
+                    <Label className="text-sm font-semibold">Per-Server Permissies</Label>
+                    <div className="mt-2 mb-4">
+                      <ServerPermsBlock
+                        perms={role.permissions}
+                        onChange={(next) => updateRole(role, { permissions: next })}
+                      />
+                    </div>
 
                     <Button variant="destructive" className="w-full gap-1 mt-2" onClick={() => deleteRole(role.id)}>
                       <Trash2 className="w-4 h-4" /> Rol Verwijderen
