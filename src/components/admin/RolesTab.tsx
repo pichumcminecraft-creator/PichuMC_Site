@@ -146,8 +146,71 @@ export function RolesTab() {
     </Tooltip>
   );
 
+  const ServerPermsBlock = ({
+    perms,
+    onChange,
+  }: {
+    perms: Record<string, boolean>;
+    onChange: (next: Record<string, boolean>) => void;
+  }) => {
+    const [openId, setOpenId] = useState<string | null>(null);
+    if (servers.length === 0) {
+      return (
+        <p className="text-xs text-muted-foreground italic">
+          Geen servers geladen (Pterodactyl koppeling nog niet beschikbaar of geen toegang).
+        </p>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        {servers.map((srv) => {
+          const open = openId === srv.identifier;
+          const activeCount = SERVER_PERMS.filter((p) => perms[`srv_${srv.identifier}_${p.key}`]).length;
+          return (
+            <div key={srv.identifier} className="rounded-lg bg-secondary/50 border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setOpenId(open ? null : srv.identifier)}
+                className="w-full flex items-center gap-3 p-3 hover:bg-secondary transition-colors"
+              >
+                <Server className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-foreground flex-1 text-left">{srv.name}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {activeCount}/{SERVER_PERMS.length} perms
+                </span>
+                {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {open && (
+                <div className="px-3 pb-3 grid grid-cols-2 md:grid-cols-3 gap-2 border-t border-border pt-3">
+                  {SERVER_PERMS.map((p) => {
+                    const k = `srv_${srv.identifier}_${p.key}`;
+                    return (
+                      <label key={k} className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                        <Checkbox checked={!!perms[k]} onCheckedChange={() => onChange({ ...perms, [k]: !perms[k] })} />
+                        {p.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className={"space-y-6 " + (canEditPerms ? "" : "pointer-events-none opacity-70")}>
+      {!canEditPerms && (
+        <div className="card-glow rounded-xl bg-destructive/10 border border-destructive/30 p-4 flex items-center gap-3 pointer-events-auto opacity-100">
+          <Lock className="w-5 h-5 text-destructive shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-foreground">Alleen LikeAPichu kan rol-permissies bewerken</p>
+            <p className="text-xs text-muted-foreground">Je kunt rollen wel bekijken, maar niet aanpassen.</p>
+          </div>
+        </div>
+      )}
       <div className="card-glow rounded-xl bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
           <Plus className="w-4 h-4 text-primary" />
