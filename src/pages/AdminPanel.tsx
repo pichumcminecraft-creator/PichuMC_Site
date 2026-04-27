@@ -34,6 +34,7 @@ const adminItems = [
   { key: "applications", label: "Sollicitaties", icon: FileText },
   { key: "positions", label: "Posities", icon: Zap },
   { key: "discord", label: "Discord", icon: MessageCircle },
+  { key: "servers", label: "Servers", icon: Server },
   { key: "roles", label: "Rollen", icon: Crown },
   { key: "activity", label: "Activiteit", icon: Clock },
   { key: "site-settings", label: "Teksten", icon: Settings },
