@@ -342,6 +342,20 @@ export function RolesTab() {
                       </>
                     )}
 
+                    {positions.length > 0 && (
+                      <>
+                        {/* server perms below */}
+                      </>
+                    )}
+
+                    <Label className="text-sm font-semibold">Per-Server Permissies</Label>
+                    <div className="mt-2 mb-4">
+                      <ServerPermsBlock
+                        perms={role.permissions}
+                        onChange={(next) => updateRole(role, { permissions: next })}
+                      />
+                    </div>
+
                     <Button variant="destructive" className="w-full gap-1 mt-2" onClick={() => deleteRole(role.id)}>
                       <Trash2 className="w-4 h-4" /> Rol Verwijderen
                     </Button>
