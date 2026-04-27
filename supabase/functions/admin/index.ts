@@ -1086,14 +1086,15 @@ Deno.serve(async (req) => {
       return text ? (text.startsWith("{") || text.startsWith("[") ? JSON.parse(text) : text) : null;
     };
 
-    // Per-server permissions stored on a role: ptero_servers[serverId] = { view, power, console, whitelist, players }
+    // Per-server permissions stored as flat keys: srv_<serverId>_<perm>
+    // perms: view, power, console, whitelist, players
     const canServer = (serverId: string, perm: "view" | "power" | "console" | "whitelist" | "players") => {
       if (isOwner) return true;
-      const ps: any = (session.permissions as any)?.ptero_servers || {};
-      const sp = ps[serverId];
-      if (!sp) return false;
-      if (perm !== "view" && !sp.view) return false;
-      return !!sp[perm];
+      const p: any = session.permissions || {};
+      // backward compat with the older nested ptero_servers shape
+      const nested = p.ptero_servers?.[serverId];
+      if (perm !== "view" && !p[`srv_${serverId}_view`] && !nested?.view) return false;
+      return !!p[`srv_${serverId}_${perm}`] || !!nested?.[perm];
     };
 
     if (action === "ptero-servers") {
