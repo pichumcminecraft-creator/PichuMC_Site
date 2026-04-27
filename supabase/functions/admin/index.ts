@@ -1206,7 +1206,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ error: "Onbekende actie" }, 400);
+    return jsonResponse({ error: `Onbekende actie: ${action}` }, 400);
   } catch (err) {
     return jsonResponse({ error: (err as Error).message }, 500);
   }
