@@ -63,7 +63,7 @@ const AdminPanel = () => {
 
   const permMap: Record<string, string> = {
     team: "users_view", applications: "applications_view", positions: "positions_view",
-    discord: "discord_view", roles: "roles_view", activity: "activity_view",
+    discord: "discord_view", servers: "owner_panel", roles: "roles_view", activity: "activity_view",
     "site-settings": "content_view", theme: "content_manage", announcements: "announcements_manage",
     owner: "owner_panel",
   };
