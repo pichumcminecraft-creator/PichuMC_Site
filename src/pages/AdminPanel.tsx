@@ -19,6 +19,7 @@ import { SiteSettingsTab } from "@/components/admin/SiteSettingsTab";
 import { ThemeTab } from "@/components/admin/ThemeTab";
 import { ActivityTab } from "@/components/admin/ActivityTab";
 import { OwnerPanel } from "@/components/admin/OwnerPanel";
+import { ServersTab } from "@/components/admin/ServersTab";
 import pichuLogo from "@/assets/PichuMC_logo.png";
 
 const staffItems = [
