@@ -182,6 +182,7 @@ const AdminPanel = () => {
           {activePage === "applications" && <ApplicationsTab />}
           {activePage === "positions" && <PositionsTab onRefresh={() => {}} />}
           {activePage === "discord" && <DiscordTab />}
+          {activePage === "servers" && <ServersTab />}
           {activePage === "roles" && <RolesTab />}
           {activePage === "activity" && <ActivityTab />}
           {activePage === "site-settings" && <SiteSettingsTab />}
