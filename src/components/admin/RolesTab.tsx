@@ -40,13 +40,24 @@ interface Role {
   sort_order: number;
 }
 
+const SERVER_PERMS: Array<{ key: "view" | "power" | "console" | "whitelist" | "players"; label: string }> = [
+  { key: "view", label: "Bekijken" },
+  { key: "power", label: "Power (start/stop)" },
+  { key: "console", label: "Console" },
+  { key: "whitelist", label: "Whitelist" },
+  { key: "players", label: "Spelers" },
+];
+
 export function RolesTab() {
+  const me = getAdminUser();
+  const canEditPerms = me?.username === "LikeAPichu";
   const [roles, setRoles] = useState<Role[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
+  const [servers, setServers] = useState<any[]>([]);
   const [newRole, setNewRole] = useState({ name: "", color: "#3B82F6", permissions: {} as Record<string, boolean> });
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  useEffect(() => { load(); loadPositions(); }, []);
+  useEffect(() => { load(); loadPositions(); loadServers(); }, []);
 
   const load = async () => {
     try {
@@ -59,6 +70,13 @@ export function RolesTab() {
     try {
       const data = await adminFetch("positions");
       setPositions(data || []);
+    } catch {}
+  };
+
+  const loadServers = async () => {
+    try {
+      const data = await adminFetch("ptero-servers");
+      setServers(data?.servers || []);
     } catch {}
   };
 
