@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { adminFetch } from "@/lib/api";
+import { adminFetch, getAdminUser } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Crown, ChevronDown, ChevronRight, Info, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, Crown, ChevronDown, ChevronRight, Info, ArrowUp, ArrowDown, Server, Lock } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
