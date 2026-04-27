@@ -341,13 +341,6 @@ export function RolesTab() {
                         </div>
                       </>
                     )}
-
-                    {positions.length > 0 && (
-                      <>
-                        {/* server perms below */}
-                      </>
-                    )}
-
                     <Label className="text-sm font-semibold">Per-Server Permissies</Label>
                     <div className="mt-2 mb-4">
                       <ServerPermsBlock
