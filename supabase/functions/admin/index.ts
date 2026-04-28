@@ -58,7 +58,7 @@ function buildTaskEmbed(title: string, description: string | null, status: strin
   };
 }
 
-// Edge function v4 — force redeploy (dm-ticket-invite, discord-broadcast, bulk-applications)
+// Edge function v5 — force redeploy (ptero-servers, dm-ticket-invite, server perms, db-info)
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
